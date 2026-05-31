@@ -267,42 +267,22 @@ class MaimaiPlugin(Star):
     # 查分器切换
     # ================================================================
 
-    @command("switchprober", alias={"切换查分器"})
+    @command("switchprober", alias={"切换查分器", "更改查分器"})
     async def _switch_prober(self, event: AstrMessageEvent):
-        """切换舞萌/中二查分器。"""
-        # @command 会剥离命令名，所以 handler 收到的是 "舞萌 落雪" 这样的文本
-        # 但也用 event.get_message_str() 拿完整文本做 fallback
+        """切换舞萌查分器。用法：更改查分器 水鱼/落雪"""
         full_text = event.get_message_str().strip()
-        # 去掉命令前缀后的 param
         args = full_text.split(maxsplit=1)
         param = args[1].strip() if len(args) > 1 else ""
 
-        game = None
         prober_input = None
-
-        # 尝试匹配各种格式：
-        # 完整文本: "切换舞萌查分器 落雪" / "switchprober 落雪"
-        # param: "舞萌 落雪" / "舞萌查分器落雪" / "落雪"
         for t in [full_text, param]:
-            # "舞萌查分器 落雪" / "舞萌 落雪" / "舞萌落雪"
-            m = re.match(r"^(?:切换)?(舞萌|中二)(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", t, re.I)
+            m = re.match(r"^(?:切换|更改)?(?:舞萌)?(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", t, re.I)
             if m:
-                game = "maimai" if m.group(1) == "舞萌" else "chunithm"
-                prober_input = m.group(2).lower()
-                break
-            # "switchprober 落雪" / 单独 "落雪"
-            m2 = re.match(r"^(?:switchprober\s+)?(水鱼|落雪|divingfish|lxns)$", t, re.I)
-            if m2:
-                game = self._resolve_game(event)
-                prober_input = m2.group(1).lower()
+                prober_input = m.group(1).lower()
                 break
 
-        if not game or not prober_input:
-            yield self._message(
-                "用法：\n"
-                "  切换舞萌查分器 水鱼/落雪\n"
-                "  切换中二查分器 水鱼/落雪"
-            )
+        if not prober_input:
+            yield self._message("用法：更改查分器 水鱼/落雪")
             return
 
         prober_map = {"水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
@@ -316,10 +296,9 @@ class MaimaiPlugin(Star):
             yield self._message("此命令只能在群聊中使用。")
             return
 
-        await self.group_store.set_prober(game, prober, group_id)
+        await self.group_store.set_prober("maimai", prober, group_id)
         prober_label = "水鱼" if prober == "divingfish" else "落雪"
-        game_label = "maimai DX" if game == "maimai" else "CHUNITHM"
-        yield self._message(f"✅ {game_label} 查分器已切换为 {prober_label}。")
+        yield self._message(f"✅ 舞萌查分器已切换为 {prober_label}。")
 
     def _get_prober(self, event: AstrMessageEvent, game: str) -> str:
         """获取当前群指定游戏的查分器。"""
