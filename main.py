@@ -269,13 +269,24 @@ class MaimaiPlugin(Star):
 
     @command("switchprober", alias={"切换查分器"})
     async def _switch_prober(self, event: AstrMessageEvent):
-        """切换舞萌/中二查分器。用法：
-        切换舞萌查分器 水鱼/落雪
-        切换中二查分器 水鱼/落雪
-        """
+        """切换舞萌/中二查分器。"""
         text = event.get_message_str().strip()
-        m = re.match(r"^切换(舞萌|中二)(查分器)?\s*(水鱼|落雪|divingfish|lxns)$", text, re.I)
-        if not m:
+        game = None
+        prober_input = None
+
+        # 匹配 "切换舞萌查分器 落雪" / "舞萌查分器落雪" / "切换舞萌 落雪"
+        m = re.match(r"^(?:切换)?(舞萌|中二)(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", text, re.I)
+        if m:
+            game = "maimai" if m.group(1) == "舞萌" else "chunithm"
+            prober_input = m.group(2).lower()
+        else:
+            # 匹配 "switchprober 落雪" — 使用当前游戏模式
+            m2 = re.match(r"^switchprober\s*(水鱼|落雪|divingfish|lxns)$", text, re.I)
+            if m2:
+                game = self._resolve_game(event)
+                prober_input = m2.group(1).lower()
+
+        if not game or not prober_input:
             yield self._message(
                 "用法：\n"
                 "  切换舞萌查分器 水鱼/落雪\n"
@@ -283,10 +294,6 @@ class MaimaiPlugin(Star):
             )
             return
 
-        game_cn = m.group(1)
-        prober_input = m.group(3).lower()
-
-        game = "maimai" if game_cn == "舞萌" else "chunithm"
         prober_map = {"水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
         prober = prober_map.get(prober_input)
         if not prober:
