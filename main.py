@@ -270,21 +270,32 @@ class MaimaiPlugin(Star):
     @command("switchprober", alias={"切换查分器"})
     async def _switch_prober(self, event: AstrMessageEvent):
         """切换舞萌/中二查分器。"""
-        text = event.get_message_str().strip()
+        # @command 会剥离命令名，所以 handler 收到的是 "舞萌 落雪" 这样的文本
+        # 但也用 event.get_message_str() 拿完整文本做 fallback
+        full_text = event.get_message_str().strip()
+        # 去掉命令前缀后的 param
+        args = full_text.split(maxsplit=1)
+        param = args[1].strip() if len(args) > 1 else ""
+
         game = None
         prober_input = None
 
-        # 匹配 "切换舞萌查分器 落雪" / "舞萌查分器落雪" / "切换舞萌 落雪"
-        m = re.match(r"^(?:切换)?(舞萌|中二)(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", text, re.I)
-        if m:
-            game = "maimai" if m.group(1) == "舞萌" else "chunithm"
-            prober_input = m.group(2).lower()
-        else:
-            # 匹配 "switchprober 落雪" — 使用当前游戏模式
-            m2 = re.match(r"^switchprober\s*(水鱼|落雪|divingfish|lxns)$", text, re.I)
+        # 尝试匹配各种格式：
+        # 完整文本: "切换舞萌查分器 落雪" / "switchprober 落雪"
+        # param: "舞萌 落雪" / "舞萌查分器落雪" / "落雪"
+        for t in [full_text, param]:
+            # "舞萌查分器 落雪" / "舞萌 落雪" / "舞萌落雪"
+            m = re.match(r"^(?:切换)?(舞萌|中二)(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", t, re.I)
+            if m:
+                game = "maimai" if m.group(1) == "舞萌" else "chunithm"
+                prober_input = m.group(2).lower()
+                break
+            # "switchprober 落雪" / 单独 "落雪"
+            m2 = re.match(r"^(?:switchprober\s+)?(水鱼|落雪|divingfish|lxns)$", t, re.I)
             if m2:
                 game = self._resolve_game(event)
                 prober_input = m2.group(1).lower()
+                break
 
         if not game or not prober_input:
             yield self._message(
