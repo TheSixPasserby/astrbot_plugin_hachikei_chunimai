@@ -101,7 +101,7 @@ async def chu_b30_handler(
             for i, s in enumerate(bests[:30], 1):
                 r = s.get("rating", 0)
                 total += r
-                fc = CHU_FC_LABELS.get(s.get("full_combo", ""), "-")
+                fc = CHU_FC_LABELS.get(s.get("full_combo", ""), "-").upper()
                 rank = chu_rank_label(s.get("score", 0))
                 lines.append(
                     f"| {i} | {s.get('song_name', '?')} | {s.get('level', '?')} "

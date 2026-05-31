@@ -8,6 +8,17 @@ from typing import TYPE_CHECKING, Any
 from ..errors import MaimaiError, MusicNotPlayError, describe_error
 from ..models import UserInfo
 from ..music_data import MusicDataManager, achievements_label, diff_index_to_label
+
+
+def _fmt_fc(fs: str | None) -> str:
+    """格式化 FC/FS 标签。"""
+    if not fs:
+        return "-"
+    mapping = {
+        "app": "AP+", "ap": "AP", "fcp": "FC+", "fc": "FC",
+        "fsdp": "FDX+", "fsd": "FDX", "fsp": "FS+", "fs": "FS", "sync": "SYNC",
+    }
+    return mapping.get(fs.lower(), fs.upper())
 from ..image_utils import pie_chart, image_to_base64
 
 try:
@@ -64,18 +75,20 @@ async def b50_handler(
             lines.append("|---|------|------|--------|-----|")
             for i, c in enumerate(user_info.charts.sd[:35], 1):
                 label = diff_index_to_label.get(c.level_index, "?")
+                fc = _fmt_fc(c.fc)
                 lines.append(
-                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} |"
+                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} | {fc} |"
                 )
 
         if user_info.charts.dx:
             lines.append("\n## DX Best 15\n")
-            lines.append("| # | 难度 | 曲名 | 达成率 | Ra |")
-            lines.append("|---|------|------|--------|-----|")
+            lines.append("| # | 难度 | 曲名 | 达成率 | Ra | FC |")
+            lines.append("|---|------|------|--------|-----|-----|")
             for i, c in enumerate(user_info.charts.dx[:15], 1):
                 label = diff_index_to_label.get(c.level_index, "?")
+                fc = _fmt_fc(c.fc)
                 lines.append(
-                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} |"
+                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} | {fc} |"
                 )
 
         # 查分器状态

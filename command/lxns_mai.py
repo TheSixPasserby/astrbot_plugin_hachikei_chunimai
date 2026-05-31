@@ -6,6 +6,17 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
 
+
+def _fmt_fc(fs: str | None) -> str:
+    """格式化 FC/FS 标签：fcp -> FC+, app -> AP+, fsdp -> FDX+ 等。"""
+    if not fs:
+        return "-"
+    mapping = {
+        "app": "AP+", "ap": "AP", "fcp": "FC+", "fc": "FC",
+        "fsdp": "FDX+", "fsd": "FDX", "fsp": "FS+", "fs": "FS", "sync": "SYNC",
+    }
+    return mapping.get(fs.lower(), fs.upper())
+
 try:
     from astrbot.api import logger
 except ImportError:
@@ -75,8 +86,8 @@ async def lxns_mai_b50_handler(
             lines.append("| # | 难度 | 曲名 | 达成率 | DX分 | 评级 | FC |")
             lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(standard[:35], 1):
-                fc = s.get("fc", "") or "-"
-                rate = s.get("rate", "")
+                fc = _fmt_fc(s.get("fc"))
+                rate = (s.get("rate") or "").upper()
                 lines.append(
                     f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
@@ -87,8 +98,8 @@ async def lxns_mai_b50_handler(
             lines.append("| # | 难度 | 曲名 | 达成率 | DX分 | 评级 | FC |")
             lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(dx[:15], 1):
-                fc = s.get("fc", "") or "-"
-                rate = s.get("rate", "")
+                fc = _fmt_fc(s.get("fc"))
+                rate = (s.get("rate") or "").upper()
                 lines.append(
                     f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
