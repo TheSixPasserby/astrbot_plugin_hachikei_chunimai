@@ -49,6 +49,7 @@ async def chu_b30_handler(
                     ds_map[(sid, diff["difficulty"])] = diff["level_value"]
         except Exception as e:
             logger.warning(f"CHUNITHM 歌曲数据加载失败: {e}")
+            yield event.plain_result("⚠️ 从落雪获取定数信息失败，将使用本地数据（部分歌曲定数可能缺失）。")
 
         def _get_ds(song_id: int, level_index: int) -> str:
             lv = ds_map.get((song_id, level_index))

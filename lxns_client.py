@@ -168,7 +168,16 @@ class LxnsAPI:
 
     async def chu_song_list(self, **params) -> dict:
         """获取曲目列表。返回 {songs[], genres[], versions[]}"""
-        return await self._get("/chunithm/song/list", params=params)
+        # 公共 API，不带认证头
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/chunithm/song/list"
+        async with session.get(url, params=params) as res:
+            data = await res.json()
+            if isinstance(data, dict) and "songs" in data:
+                return data
+            if not data.get("success"):
+                raise ServerError(f"落雪CHUNITHM歌曲API: {data.get('message', '未知错误')}")
+            return data.get("data", data)
 
     async def chu_song(self, song_id: int) -> dict:
         return await self._get(f"/chunithm/song/{song_id}")
