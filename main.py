@@ -525,7 +525,7 @@ class MaimaiPlugin(Star):
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         elif prober == "lxns":
-            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
+            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                 yield r
         else:
             async for r in b50_handler(event, self.api, self.music_data, qq=qq):

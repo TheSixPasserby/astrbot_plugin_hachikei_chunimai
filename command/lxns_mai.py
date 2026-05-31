@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
+from ..music_data import MusicDataManager
 
 
 def _fmt_fc(fs: str | None) -> str:
@@ -44,6 +45,7 @@ async def lxns_mai_b50_handler(
     event: AstrMessageEvent,
     lxns: LxnsAPI,
     qq: int | None = None,
+    music_data: MusicDataManager | None = None,
     **_: Any,
 ):
     """落雪 maimai DX B50 查询。"""
@@ -51,28 +53,14 @@ async def lxns_mai_b50_handler(
         args = event.get_message_str().strip().split(maxsplit=1)
         query = args[1].strip() if len(args) > 1 else None
 
-        # 加载歌曲数据用于查询精确定数
-        song_map: dict[int, dict] = {}
-        try:
-            song_data = await lxns.mai_song_list()
-            for s in song_data.get("songs", []):
-                song_map[int(s["id"])] = s
-            logger.info(f"落雪歌曲数据加载: {len(song_map)} 首")
-        except Exception as e:
-            logger.warning(f"落雪歌曲数据加载失败: {e}")
-
-        def _get_ds(song_id: int, level_index: int, song_type: str) -> str:
-            """获取精确定数。"""
-            song = song_map.get(song_id)
-            if not song:
+        def _get_ds(song_id: int, level_index: int) -> str:
+            """从已加载的歌曲数据获取精确定数。"""
+            if not music_data:
                 return "?"
-            diffs = song.get("difficulties", {})
-            key = "standard" if song_type == "standard" else "dx"
-            for d in diffs.get(key, []):
-                if d.get("difficulty") == level_index:
-                    lv = d.get("level_value")
-                    return f"{lv:.1f}" if lv is not None else d.get("level", "?")
-            return "?"
+            music = music_data.music_list.by_id(str(song_id))
+            if not music or level_index >= len(music.ds):
+                return "?"
+            return f"{music.ds[level_index]:.1f}"
 
         # 获取玩家信息：优先个人 API
         player = None
@@ -123,7 +111,7 @@ async def lxns_mai_b50_handler(
             for i, s in enumerate(standard[:35], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
-                ds = _get_ds(s.get("id", 0), s.get("level_index", 0), s.get("type", "standard"))
+                ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
                 lines.append(
                     f"| {i} | {ds} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
@@ -136,7 +124,7 @@ async def lxns_mai_b50_handler(
             for i, s in enumerate(dx[:15], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
-                ds = _get_ds(s.get("id", 0), s.get("level_index", 0), s.get("type", "dx"))
+                ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
                 lines.append(
                     f"| {i} | {ds} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
