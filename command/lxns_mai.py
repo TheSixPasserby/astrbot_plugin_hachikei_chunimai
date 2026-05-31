@@ -54,16 +54,26 @@ async def lxns_mai_b50_handler(
         query = args[1].strip() if len(args) > 1 else None
 
         # 构建歌曲定数查找表：{(song_id, difficulty): level_value}
-        # 落雪ID是4位，水鱼ID是5位（前面加1），两边都建索引
         ds_map: dict[tuple[int, int], float] = {}
+        # 1. 从落雪 API 获取（权威数据源）
+        try:
+            song_data = await lxns.mai_song_list()
+            for s in song_data.get("songs", []):
+                sid = int(s["id"])
+                for diff in s.get("difficulties", {}).get("standard", []):
+                    ds_map[(sid, diff["difficulty"])] = diff["level_value"]
+                for diff in s.get("difficulties", {}).get("dx", []):
+                    ds_map[(sid, diff["difficulty"])] = diff["level_value"]
+            logger.info(f"落雪歌曲定数加载: {len(ds_map)} 条")
+        except Exception as e:
+            logger.warning(f"落雪歌曲数据加载失败: {e}")
+        # 2. 从本地 DivingFish 数据补充（ID 映射：水鱼5位=落雪4位+10000）
         if music_data:
             for m in music_data.music_list:
                 mid = int(m.id)
+                lxns_id = mid - 10000 if mid > 9999 else mid
                 for i, d in enumerate(m.ds):
-                    ds_map[(mid, i)] = d
-                    # 水鱼5位ID -> 落雪4位ID：去掉前导1
-                    if mid > 9999:
-                        ds_map[(mid - 10000, i)] = d
+                    ds_map.setdefault((lxns_id, i), d)
 
         def _get_ds(song_id: int, level_index: int) -> str:
             lv = ds_map.get((song_id, level_index))
