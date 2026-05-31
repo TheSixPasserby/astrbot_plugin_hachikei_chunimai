@@ -135,6 +135,11 @@ async def chu_b30_handler(
                 )
             lines.append(f"New Best 20 均值: {total / min(20, len(new_bests)):.2f}")
 
+        # 查分器状态
+        lines.append("")
+        lines.append("——————————————")
+        lines.append("当前数据源: 落雪咖啡屋")
+
         yield event.make_result().use_markdown(True).message("\n".join(lines))
 
     except MaimaiError as e:

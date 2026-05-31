@@ -75,6 +75,12 @@ async def b50_handler(
                     f"{i:2d}. [{label}] {c.title} | {c.achievements:.4f}% | Ra:{c.ra}"
                 )
 
+        # 查分器状态
+        lines.append("")
+        lines.append("——————————————")
+        lines.append("当前数据源: 水鱼查分器")
+        lines.append("发送「更改查分器 水鱼/落雪」来切换数据源")
+
         # TODO: 生成图片版本（需要 image_gen.py 完善后）
         yield event.make_result().use_markdown(True).message("\n".join(lines))
 
