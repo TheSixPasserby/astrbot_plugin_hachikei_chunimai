@@ -66,8 +66,12 @@ class LxnsAPI:
                 raise ServerError(f"Lxns API 错误 ({code}): {msg}")
             return data.get("data")
 
+    async def _user_get(self, path: str, **kwargs: Any) -> Any:
+        """使用个人 API 密钥请求。"""
+        return await self._get(path, headers=self._user_headers(), **kwargs)
+
     # ================================================================
-    # maimai DX
+    # maimai DX（开发者 API）
     # ================================================================
 
     async def mai_player_by_qq(self, qq: int) -> dict:
@@ -92,6 +96,18 @@ class LxnsAPI:
         """获取 Recent 50。"""
         return await self._get(f"/maimai/player/{friend_code}/recents")
 
+    # ================================================================
+    # maimai DX（个人 API）
+    # ================================================================
+
+    async def mai_user_player(self) -> dict:
+        """获取自己的玩家信息。"""
+        return await self._user_get("/user/maimai/player")
+
+    async def mai_user_scores(self) -> list:
+        """获取自己的所有成绩。"""
+        return await self._user_get("/user/maimai/player/scores")
+
     async def mai_song_list(self, **params) -> dict:
         """获取曲目列表。返回 {songs[], genres[], versions[]}"""
         return await self._get("/maimai/song/list", params=params)
@@ -104,7 +120,7 @@ class LxnsAPI:
         return await self._get("/maimai/alias/list")
 
     # ================================================================
-    # CHUNITHM
+    # CHUNITHM（开发者 API）
     # ================================================================
 
     async def chu_player_by_qq(self, qq: int) -> dict:
@@ -128,6 +144,18 @@ class LxnsAPI:
     async def chu_recents(self, friend_code: int) -> list:
         """获取 Recent 50。"""
         return await self._get(f"/chunithm/player/{friend_code}/recents")
+
+    # ================================================================
+    # CHUNITHM（个人 API）
+    # ================================================================
+
+    async def chu_user_player(self) -> dict:
+        """获取自己的玩家信息。"""
+        return await self._user_get("/user/chunithm/player")
+
+    async def chu_user_scores(self) -> list:
+        """获取自己的所有成绩。"""
+        return await self._user_get("/user/chunithm/player/scores")
 
     async def chu_song_list(self, **params) -> dict:
         """获取曲目列表。返回 {songs[], genres[], versions[]}"""

@@ -49,22 +49,38 @@ async def chu_b30_handler(
             except Exception:
                 pass
 
-        # 获取玩家信息
+        # 获取玩家信息：优先个人 API，其次开发者 API
         player = None
         friend_code = None
-        if qq:
+        use_personal = False
+
+        if lxns._user_token:
+            # 有个人密钥，直接用个人 API
+            try:
+                player = await lxns.chu_user_player()
+                friend_code = player.get("friend_code")
+                use_personal = True
+            except Exception:
+                pass
+
+        if not player and qq:
             player = await lxns.chu_player_by_qq(qq)
             friend_code = player.get("friend_code")
-        elif query and query.isdigit():
+        elif not player and query and query.isdigit():
             friend_code = int(query)
             player = await lxns.chu_player_by_fc(friend_code)
 
         if not player or not friend_code:
-            yield event.plain_result("未找到玩家。请在落雪查分器绑定 QQ 号，或使用 `chub30 <好友码>` 查询。")
+            yield event.plain_result(
+                "未找到玩家。请先执行 `bindqq <QQ号>` 绑定，或使用 `chub30 <好友码>` 查询。"
+            )
             return
 
-        # 获取 B30
-        bests_data = await lxns.chu_bests(friend_code)
+        # 获取 B30：优先个人 API
+        if use_personal:
+            bests_data = await lxns._user_get("/user/chunithm/player/bests")
+        else:
+            bests_data = await lxns.chu_bests(friend_code)
         bests = bests_data.get("bests", [])
         selections = bests_data.get("selections", [])
         new_bests = bests_data.get("new_bests", [])
@@ -154,14 +170,21 @@ async def chu_minfo_handler(
             except Exception:
                 pass
 
-        if not qq:
-            yield event.plain_result("请 @ 一位已绑定落雪查分器的用户。")
-            return
-
-        player = await lxns.chu_player_by_qq(qq)
-        fc = player.get("friend_code")
+        # 获取玩家信息：优先个人 API
+        fc = None
+        use_personal = False
+        if lxns._user_token:
+            try:
+                player = await lxns.chu_user_player()
+                fc = player.get("friend_code")
+                use_personal = True
+            except Exception:
+                pass
+        if not fc and qq:
+            player = await lxns.chu_player_by_qq(qq)
+            fc = player.get("friend_code")
         if not fc:
-            yield event.plain_result("未找到该玩家。")
+            yield event.plain_result("未找到玩家。请先执行 `bindqq <QQ号>` 绑定。")
             return
 
         # 查找歌曲
@@ -174,8 +197,11 @@ async def chu_minfo_handler(
                 yield event.plain_result("未找到匹配的歌曲。")
                 return
 
-        # 获取成绩
-        score = await lxns.chu_best(fc, song_id=song.id)
+        # 获取成绩：优先个人 API
+        if use_personal:
+            score = await lxns._user_get("/user/chunithm/player/best", params={"song_id": song.id})
+        else:
+            score = await lxns.chu_best(fc, song_id=song.id)
 
         fc_label = CHU_FC_LABELS.get(score.get("full_combo", ""), "-")
         chain_label = CHU_CHAIN_LABELS.get(score.get("full_chain", ""), "-")
