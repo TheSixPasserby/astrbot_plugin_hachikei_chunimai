@@ -53,26 +53,29 @@ async def b50_handler(
             yield event.plain_result("未找到游玩记录。")
             return
 
-        # 构建 B50 文本（图片生成需要 Pillow，这里先用文本）
-        lines = [f"🎵 {user_info.nickname or user_info.username} 的 Best 50"]
-        lines.append(f"Rating: {user_info.rating}")
-        lines.append("")
+        # 构建 B50 markdown
+        name = user_info.nickname or user_info.username or "未知"
+        lines = [f"# 🎵 {name} 的 Best 50\n"]
+        lines.append(f"**Rating: {user_info.rating}**\n")
 
         if user_info.charts.sd:
-            lines.append("═══ SD Best 35 ═══")
+            lines.append("## SD Best 35\n")
+            lines.append("| # | 难度 | 曲名 | 达成率 | Ra |")
+            lines.append("|---|------|------|--------|-----|")
             for i, c in enumerate(user_info.charts.sd[:35], 1):
                 label = diff_index_to_label.get(c.level_index, "?")
                 lines.append(
-                    f"{i:2d}. [{label}] {c.title} | {c.achievements:.4f}% | Ra:{c.ra}"
+                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} |"
                 )
 
         if user_info.charts.dx:
-            lines.append("")
-            lines.append("═══ DX Best 15 ═══")
+            lines.append("\n## DX Best 15\n")
+            lines.append("| # | 难度 | 曲名 | 达成率 | Ra |")
+            lines.append("|---|------|------|--------|-----|")
             for i, c in enumerate(user_info.charts.dx[:15], 1):
                 label = diff_index_to_label.get(c.level_index, "?")
                 lines.append(
-                    f"{i:2d}. [{label}] {c.title} | {c.achievements:.4f}% | Ra:{c.ra}"
+                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} |"
                 )
 
         # 查分器状态

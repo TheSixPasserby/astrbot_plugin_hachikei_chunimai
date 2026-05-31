@@ -67,31 +67,31 @@ async def lxns_mai_b50_handler(
         standard = bests_data.get("standard", [])
         dx = bests_data.get("dx", [])
 
-        lines = [f"🎵 {name} 的 maimai DX Best 50"]
-        lines.append(f"Rating: {rating} (旧谱面: {standard_total} / 新谱面: {dx_total})")
-        lines.append("")
+        lines = [f"# 🎵 {name} 的 Best 50\n"]
+        lines.append(f"**Rating: {rating}** (旧谱面: {standard_total} / 新谱面: {dx_total})\n")
 
         if standard:
-            lines.append("═══ 旧版本 Best 35 ═══")
+            lines.append("## 旧版本 Best 35\n")
+            lines.append("| # | 难度 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(standard[:35], 1):
-                fc = s.get("fc", "") or ""
+                fc = s.get("fc", "") or "-"
                 rate = s.get("rate", "")
-                dx_score = s.get("dx_score", 0)
                 lines.append(
-                    f"{i:2d}. [{s.get('level', '?')}] {s.get('song_name', '?')} "
-                    f"| {s.get('achievements', 0):.4f}% | DX:{dx_score} | {rate} {fc}"
+                    f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
+                    f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
                 )
 
         if dx:
-            lines.append("")
-            lines.append("═══ 新版本 Best 15 ═══")
+            lines.append("\n## 新版本 Best 15\n")
+            lines.append("| # | 难度 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(dx[:15], 1):
-                fc = s.get("fc", "") or ""
+                fc = s.get("fc", "") or "-"
                 rate = s.get("rate", "")
-                dx_score = s.get("dx_score", 0)
                 lines.append(
-                    f"{i:2d}. [{s.get('level', '?')}] {s.get('song_name', '?')} "
-                    f"| {s.get('achievements', 0):.4f}% | DX:{dx_score} | {rate} {fc}"
+                    f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
+                    f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
                 )
 
         # 查分器状态（与分表隔开，后续分表改为图片时此行保持文本）
