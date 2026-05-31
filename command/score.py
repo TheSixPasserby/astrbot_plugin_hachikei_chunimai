@@ -77,7 +77,8 @@ async def b50_handler(
 
         # 查分器状态
         lines.append("")
-        lines.append("由(水鱼查分器)提供数据")
+        lines.append("——————————————")
+        lines.append("由水鱼查分器提供数据")
         lines.append("发送「更改查分器 水鱼/落雪」以切换")
 
         # TODO: 生成图片版本（需要 image_gen.py 完善后）
