@@ -53,14 +53,30 @@ async def lxns_mai_b50_handler(
         args = event.get_message_str().strip().split(maxsplit=1)
         query = args[1].strip() if len(args) > 1 else None
 
+        # 构建歌曲定数查找表：{(song_id, difficulty): level_value}
+        ds_map: dict[tuple[int, int], float] = {}
+        # 优先从本地 DivingFish 数据获取
+        if music_data:
+            for m in music_data.music_list:
+                mid = int(m.id)
+                for i, d in enumerate(m.ds):
+                    ds_map[(mid, i)] = d
+        # 本地没有的再从落雪 API 补充
+        if not ds_map:
+            try:
+                song_data = await lxns.mai_song_list()
+                for s in song_data.get("songs", []):
+                    sid = int(s["id"])
+                    for diff in s.get("difficulties", {}).get("standard", []):
+                        ds_map[(sid, diff["difficulty"])] = diff["level_value"]
+                    for diff in s.get("difficulties", {}).get("dx", []):
+                        ds_map[(sid, diff["difficulty"])] = diff["level_value"]
+            except Exception as e:
+                logger.warning(f"落雪歌曲数据加载失败: {e}")
+
         def _get_ds(song_id: int, level_index: int) -> str:
-            """从已加载的歌曲数据获取精确定数。"""
-            if not music_data:
-                return "?"
-            music = music_data.music_list.by_id(str(song_id))
-            if not music or level_index >= len(music.ds):
-                return "?"
-            return f"{music.ds[level_index]:.1f}"
+            lv = ds_map.get((song_id, level_index))
+            return f"{lv:.1f}" if lv is not None else "?"
 
         # 获取玩家信息：优先个人 API
         player = None
@@ -106,25 +122,27 @@ async def lxns_mai_b50_handler(
 
         if standard:
             lines.append("## 旧版本 Best 35\n")
-            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | FC |")
-            lines.append("|---|------|------|--------|------|------|-----|")
+            lines.append("| # | 定数 | 类型 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("|---|------|------|------|--------|------|------|-----|")
             for i, s in enumerate(standard[:35], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
+                stype = "ST" if s.get("type") == "standard" else "DX"
                 lines.append(
-                    f"| {i} | {ds} | {s.get('song_name', '?')} "
+                    f"| {i} | {ds} | {stype} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
                 )
 
         if dx:
             lines.append("\n## 新版本 Best 15\n")
-            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | FC |")
-            lines.append("|---|------|------|--------|------|------|-----|")
+            lines.append("| # | 定数 | 类型 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("|---|------|------|------|--------|------|------|-----|")
             for i, s in enumerate(dx[:15], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
+                stype = "ST" if s.get("type") == "standard" else "DX"
                 lines.append(
                     f"| {i} | {ds} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
