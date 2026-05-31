@@ -143,8 +143,7 @@ class MaimaiPlugin(Star):
     def _user_key(event: AstrMessageEvent) -> str:
         return f"{event.get_platform_name()}:{event.get_sender_id()}"
 
-    @staticmethod
-    def _group_id(event: AstrMessageEvent) -> str:
+    def _group_id(self, event: AstrMessageEvent) -> str:
         """跨平台获取群/频道 ID。"""
         gid = self._group_id(event)
         if gid:
