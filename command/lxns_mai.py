@@ -120,31 +120,37 @@ async def lxns_mai_b50_handler(
         lines = [f"# 🎵 {name} 的 Best 50\n"]
         lines.append(f"**Rating: {rating}** (旧谱面: {standard_total} / 新谱面: {dx_total})\n")
 
+        _DIFF_LABELS = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "RE:MASTER"]
+
+        def _fmt_song(s: dict) -> str:
+            """格式化歌曲名：【DX】曲名 [MASTER]"""
+            stype = "DX" if s.get("type") == "dx" else "ST"
+            diff = _DIFF_LABELS[s.get("level_index", 3)] if s.get("level_index", 3) < 5 else "?"
+            return f"【{stype}】{s.get('song_name', '?')} [{diff}]"
+
         if standard:
             lines.append("## 旧版本 Best 35\n")
-            lines.append("| # | 定数 | 类型 | 曲名 | 达成率 | DX分 | 评级 | FC |")
-            lines.append("|---|------|------|------|--------|------|------|-----|")
+            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(standard[:35], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
-                stype = "ST" if s.get("type") == "standard" else "DX"
                 lines.append(
-                    f"| {i} | {ds} | {stype} | {s.get('song_name', '?')} "
+                    f"| {i} | {ds} | {_fmt_song(s)} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
                 )
 
         if dx:
             lines.append("\n## 新版本 Best 15\n")
-            lines.append("| # | 定数 | 类型 | 曲名 | 达成率 | DX分 | 评级 | FC |")
-            lines.append("|---|------|------|------|--------|------|------|-----|")
+            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(dx[:15], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
-                stype = "ST" if s.get("type") == "standard" else "DX"
                 lines.append(
-                    f"| {i} | {ds} | {s.get('song_name', '?')} "
+                    f"| {i} | {ds} | {_fmt_song(s)} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
                 )
 
