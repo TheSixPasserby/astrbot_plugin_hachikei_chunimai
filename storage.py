@@ -217,3 +217,31 @@ class GroupConfigStore:
             data = {}
         data[group_id] = game
         await asyncio.to_thread(UserStore._write_json, f, data)
+
+    # --- 查分器选择（群级） ---
+
+    def get_prober(self, game: str, group_id: str | None = None) -> str:
+        """获取查分器。返回 "divingfish" 或 "lxns"。"""
+        # 个人设置
+        if group_id:
+            f = self._file("prober")
+            try:
+                data = json.loads(f.read_text("utf-8-sig"))
+                key = f"{group_id}:{game}"
+                if key in data:
+                    return data[key]
+            except (json.JSONDecodeError, OSError, FileNotFoundError):
+                pass
+        # 默认
+        return "lxns" if game == "chunithm" else "divingfish"
+
+    async def set_prober(self, game: str, prober: str, group_id: str | None = None) -> None:
+        """设置查分器。"""
+        f = self._file("prober")
+        try:
+            data = json.loads(f.read_text("utf-8-sig"))
+        except (json.JSONDecodeError, OSError, FileNotFoundError):
+            data = {}
+        key = f"{group_id}:{game}" if group_id else f"global:{game}"
+        data[key] = prober
+        await asyncio.to_thread(UserStore._write_json, f, data)

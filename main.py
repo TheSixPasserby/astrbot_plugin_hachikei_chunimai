@@ -264,6 +264,51 @@ class MaimaiPlugin(Star):
         yield self._message(f"✅ 个人游戏已设为 {label}。")
 
     # ================================================================
+    # 查分器切换
+    # ================================================================
+
+    @command("switchprober", alias={"切换查分器"})
+    async def _switch_prober(self, event: AstrMessageEvent):
+        """切换舞萌/中二查分器。用法：
+        切换舞萌查分器 水鱼/落雪
+        切换中二查分器 水鱼/落雪
+        """
+        text = event.get_message_str().strip()
+        m = re.match(r"^切换(舞萌|中二)(查分器)?\s*(水鱼|落雪|divingfish|lxns)$", text, re.I)
+        if not m:
+            yield self._message(
+                "用法：\n"
+                "  切换舞萌查分器 水鱼/落雪\n"
+                "  切换中二查分器 水鱼/落雪"
+            )
+            return
+
+        game_cn = m.group(1)
+        prober_input = m.group(3).lower()
+
+        game = "maimai" if game_cn == "舞萌" else "chunithm"
+        prober_map = {"水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
+        prober = prober_map.get(prober_input)
+        if not prober:
+            yield self._message("无效查分器。可选：水鱼、落雪")
+            return
+
+        group_id = event.get_group_id()
+        if not group_id:
+            yield self._message("此命令只能在群聊中使用。")
+            return
+
+        await self.group_store.set_prober(game, prober, group_id)
+        prober_label = "水鱼" if prober == "divingfish" else "落雪"
+        game_label = "maimai DX" if game == "maimai" else "CHUNITHM"
+        yield self._message(f"✅ {game_label} 查分器已切换为 {prober_label}。")
+
+    def _get_prober(self, event: AstrMessageEvent, game: str) -> str:
+        """获取当前群指定游戏的查分器。"""
+        gid = event.get_group_id()
+        return self.group_store.get_prober(game, gid)
+
+    # ================================================================
     # 绑定 QQ
     # ================================================================
 
@@ -352,16 +397,26 @@ class MaimaiPlugin(Star):
         if self._is_group_disabled(event):
             return
         qq = self._get_qq(event)
-        async for r in b50_handler(event, self.api, self.music_data, qq=qq):
-            yield r
+        prober = self._get_prober(event, "maimai")
+        if prober == "lxns":
+            async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
+                yield r
+        else:
+            async for r in b50_handler(event, self.api, self.music_data, qq=qq):
+                yield r
 
     @command("maiminfo")
     async def _mai_minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
         qq = self._get_qq(event)
-        async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
-            yield r
+        prober = self._get_prober(event, "maimai")
+        if prober == "lxns":
+            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+                yield r
+        else:
+            async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
+                yield r
 
     @command("maiginfo")
     async def _mai_ginfo(self, event: AstrMessageEvent):
@@ -420,9 +475,10 @@ class MaimaiPlugin(Star):
             return
         qq = self._get_qq(event)
         game = self._resolve_game(event)
+        prober = self._get_prober(event, game)
         label = GAME_LABELS.get(game, game)
         yield self._message(f"🎮 正在为 [{label}] 生成 B50/B30，请稍候...")
-        if game == "chunithm":
+        if game == "chunithm" or prober == "lxns":
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         else:
@@ -435,7 +491,8 @@ class MaimaiPlugin(Star):
             return
         qq = self._get_qq(event)
         game = self._resolve_game(event)
-        if game == "chunithm":
+        prober = self._get_prober(event, game)
+        if game == "chunithm" or prober == "lxns":
             async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         else:
