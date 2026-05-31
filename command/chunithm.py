@@ -39,6 +39,21 @@ async def chu_b30_handler(
         args = event.get_message_str().strip().split(maxsplit=1)
         query = args[1].strip() if len(args) > 1 else None
 
+        # 构建歌曲定数查找表
+        ds_map: dict[tuple[int, int], float] = {}
+        try:
+            song_data = await lxns.chu_song_list()
+            for s in song_data.get("songs", []):
+                sid = int(s["id"])
+                for diff in s.get("difficulties", []):
+                    ds_map[(sid, diff["difficulty"])] = diff["level_value"]
+        except Exception as e:
+            logger.warning(f"CHUNITHM 歌曲数据加载失败: {e}")
+
+        def _get_ds(song_id: int, level_index: int) -> str:
+            lv = ds_map.get((song_id, level_index))
+            return f"{lv:.1f}" if lv is not None else "?"
+
         # 从 @提及 获取 QQ（如果外部未传入）
         if qq is None:
             try:
@@ -109,8 +124,9 @@ async def chu_b30_handler(
                 total += r
                 fc = CHU_FC_LABELS.get(s.get("full_combo", ""), "-").upper()
                 rank = chu_rank_label(s.get("score", 0))
+                ds = _get_ds(s.get("id", 0), s.get("level_index", 3))
                 lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} | {s.get('level', '?')} "
+                    f"| {i} | {_fmt_chu_song(s)} | {ds} "
                     f"| {s.get('score', 0)} | {rank} | {r:.2f} | {fc} |"
                 )
             lines.append(f"\n**Best 30 均值: {total / min(30, len(bests)):.2f}**")
@@ -124,8 +140,9 @@ async def chu_b30_handler(
             for i, s in enumerate(selections[:10], 1):
                 r = s.get("rating", 0)
                 total += r
+                ds = _get_ds(s.get("id", 0), s.get("level_index", 3))
                 lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} | {s.get('level', '?')} "
+                    f"| {i} | {_fmt_chu_song(s)} | {ds} "
                     f"| {s.get('score', 0)} | {r:.2f} |"
                 )
             lines.append(f"\n**Selection 10 均值: {total / min(10, len(selections)):.2f}**")
@@ -139,8 +156,9 @@ async def chu_b30_handler(
             for i, s in enumerate(new_bests[:20], 1):
                 r = s.get("rating", 0)
                 total += r
+                ds = _get_ds(s.get("id", 0), s.get("level_index", 3))
                 lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} | {s.get('level', '?')} "
+                    f"| {i} | {_fmt_chu_song(s)} | {ds} "
                     f"| {s.get('score', 0)} | {r:.2f} |"
                 )
             lines.append(f"\n**New Best 20 均值: {total / min(20, len(new_bests)):.2f}**")
