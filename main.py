@@ -340,6 +340,13 @@ class MaimaiPlugin(Star):
             return int(qq)
         return None
 
+    def _require_qq(self, event: AstrMessageEvent) -> int | None:
+        """获取 QQ 号，未绑定则提示并返回 None。"""
+        qq = self._get_qq(event)
+        if qq is None:
+            return None
+        return qq
+
     # ================================================================
     # 帮助
     # ================================================================
@@ -396,7 +403,10 @@ class MaimaiPlugin(Star):
     async def _mai_b50(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._get_qq(event)
+        qq = self._require_qq(event)
+        if qq is None:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            return
         prober = self._get_prober(event, "maimai")
         if prober == "lxns":
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
@@ -409,7 +419,10 @@ class MaimaiPlugin(Star):
     async def _mai_minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._get_qq(event)
+        qq = self._require_qq(event)
+        if qq is None:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            return
         prober = self._get_prober(event, "maimai")
         if prober == "lxns":
             async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
@@ -441,14 +454,22 @@ class MaimaiPlugin(Star):
     async def _chu_b30(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in chu_b30_handler(event, self.lxns, self.chu_data):
+        qq = self._require_qq(event)
+        if qq is None:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            return
+        async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
             yield r
 
     @command("chuminfo")
     async def _chu_minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in chu_minfo_handler(event, self.lxns, self.chu_data):
+        qq = self._require_qq(event)
+        if qq is None:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            return
+        async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
             yield r
 
     @command("chusearch")
@@ -473,7 +494,10 @@ class MaimaiPlugin(Star):
     async def _b50(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._get_qq(event)
+        qq = self._require_qq(event)
+        if qq is None:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            return
         game = self._resolve_game(event)
         prober = self._get_prober(event, game)
         label = GAME_LABELS.get(game, game)
@@ -489,7 +513,10 @@ class MaimaiPlugin(Star):
     async def _minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._get_qq(event)
+        qq = self._require_qq(event)
+        if qq is None:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            return
         game = self._resolve_game(event)
         prober = self._get_prober(event, game)
         if game == "chunithm" or prober == "lxns":
@@ -562,7 +589,10 @@ class MaimaiPlugin(Star):
     async def _my_ranking(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._get_qq(event)
+        qq = self._require_qq(event)
+        if qq is None:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            return
         game = self._resolve_game(event)
         if game == "maimai":
             async for r in my_ranking_handler(event, self.api, qq=qq):

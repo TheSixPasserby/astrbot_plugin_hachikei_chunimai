@@ -10,14 +10,16 @@ if TYPE_CHECKING:
 HELP_TEXT = """\
 # 🎵 音游综合助手
 
-## 🎮 游戏切换
+## 🔗 绑定
+- `bindqq <QQ号>` — 绑定 QQ 号（用于查分）
 - `game maimai/chunithm` — 切换个人游戏
 - `game reset` — 清除个人设置，跟随群规则
 - `game group maimai/chunithm` — (管理员) 设置群默认
 - `game status` — 查看当前游戏模式
+- `切换(舞萌/中二)查分器 (水鱼/落雪)` — 切换查分器
 
+> ⚠️ **首次使用请先执行 `bindqq <你的QQ号>` 绑定 QQ**，否则查分命令无法找到你。
 > 个人设置优先于群默认，未设置则默认 maimai。
-> 带 ⭐ 的命令受游戏模式影响。
 
 ## 📊 查分 ⭐
 - `maib50` / `b50` — Best 50 图片
