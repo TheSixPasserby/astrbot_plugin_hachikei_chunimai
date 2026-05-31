@@ -51,6 +51,28 @@ async def lxns_mai_b50_handler(
         args = event.get_message_str().strip().split(maxsplit=1)
         query = args[1].strip() if len(args) > 1 else None
 
+        # 加载歌曲数据用于查询精确定数
+        song_map: dict[int, dict] = {}
+        try:
+            song_data = await lxns.mai_song_list()
+            for s in song_data.get("songs", []):
+                song_map[s["id"]] = s
+        except Exception:
+            pass
+
+        def _get_ds(song_id: int, level_index: int, song_type: str) -> str:
+            """获取精确定数。"""
+            song = song_map.get(song_id)
+            if not song:
+                return "?"
+            diffs = song.get("difficulties", {})
+            key = "standard" if song_type == "standard" else "dx"
+            for d in diffs.get(key, []):
+                if d.get("difficulty") == level_index:
+                    lv = d.get("level_value")
+                    return f"{lv:.1f}" if lv is not None else d.get("level", "?")
+            return "?"
+
         # 获取玩家信息：优先个人 API
         player = None
         friend_code = None
@@ -95,25 +117,27 @@ async def lxns_mai_b50_handler(
 
         if standard:
             lines.append("## 旧版本 Best 35\n")
-            lines.append("| # | 难度 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | FC |")
             lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(standard[:35], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
+                ds = _get_ds(s.get("id", 0), s.get("level_index", 0), s.get("type", "standard"))
                 lines.append(
-                    f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
+                    f"| {i} | {ds} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
                 )
 
         if dx:
             lines.append("\n## 新版本 Best 15\n")
-            lines.append("| # | 难度 | 曲名 | 达成率 | DX分 | 评级 | FC |")
+            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | FC |")
             lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(dx[:15], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
+                ds = _get_ds(s.get("id", 0), s.get("level_index", 0), s.get("type", "dx"))
                 lines.append(
-                    f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
+                    f"| {i} | {ds} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
                 )
 
