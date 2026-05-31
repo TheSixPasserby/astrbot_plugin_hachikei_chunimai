@@ -96,9 +96,8 @@ async def lxns_mai_b50_handler(
 
         # 查分器状态（与分表隔开，后续分表改为图片时此行保持文本）
         lines.append("")
-        lines.append("——————————————")
-        lines.append("当前数据源: 落雪咖啡屋")
-        lines.append("发送「更改查分器 水鱼/落雪」来切换数据源")
+        lines.append("由(落雪咖啡屋)提供数据")
+        lines.append("发送「更改查分器 水鱼/落雪」以切换")
 
         yield event.make_result().use_markdown(True).message("\n".join(lines))
 

@@ -137,8 +137,7 @@ async def chu_b30_handler(
 
         # 查分器状态
         lines.append("")
-        lines.append("——————————————")
-        lines.append("当前数据源: 落雪咖啡屋")
+        lines.append("由(落雪咖啡屋)提供数据")
 
         yield event.make_result().use_markdown(True).message("\n".join(lines))
 
