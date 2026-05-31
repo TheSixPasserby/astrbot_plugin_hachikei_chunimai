@@ -145,7 +145,7 @@ class MaimaiPlugin(Star):
 
     def _group_id(self, event: AstrMessageEvent) -> str:
         """跨平台获取群/频道 ID。"""
-        gid = self._group_id(event)
+        gid = event.get_group_id()
         if gid:
             return str(gid)
         # QQ 官方 API 用 channel_id
