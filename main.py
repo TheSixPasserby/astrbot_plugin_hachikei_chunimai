@@ -143,23 +143,37 @@ class MaimaiPlugin(Star):
     def _user_key(event: AstrMessageEvent) -> str:
         return f"{event.get_platform_name()}:{event.get_sender_id()}"
 
+    @staticmethod
+    def _group_id(event: AstrMessageEvent) -> str:
+        """跨平台获取群/频道 ID。"""
+        gid = self._group_id(event)
+        if gid:
+            return str(gid)
+        # QQ 官方 API 用 channel_id
+        try:
+            msg = event.message_obj
+            for attr in ("group_id", "channel_id"):
+                val = getattr(msg, attr, None)
+                if val:
+                    return str(val)
+        except Exception:
+            pass
+        return ""
+
     def _is_admin(self, event: AstrMessageEvent) -> bool:
         return event.get_sender_id() in self.admin_ids
 
     def _is_group_disabled(self, event: AstrMessageEvent) -> bool:
-        gid = event.get_group_id()
+        gid = self._group_id(event)
         return bool(gid) and self.group_store.is_group_disabled(gid)
 
     def _resolve_game(self, event: AstrMessageEvent) -> str:
-        """
-        解析当前用户的游戏模式。
-        优先级：个人设置 > 群默认 > maimai
-        """
+        """解析当前用户的游戏模式。优先级：个人设置 > 群默认 > maimai"""
         user_key = self._user_key(event)
         personal = self.user_store.get_game_mode(user_key)
         if personal:
             return personal
-        gid = event.get_group_id()
+        gid = self._group_id(event)
         if gid:
             return self.group_store.get_group_game_mode(gid)
         return "maimai"
@@ -186,7 +200,7 @@ class MaimaiPlugin(Star):
             label = GAME_LABELS.get(current, current)
             user_key = self._user_key(event)
             personal = self.user_store.get_game_mode(user_key)
-            gid = event.get_group_id()
+            gid = self._group_id(event)
             group_default = self.group_store.get_group_game_mode(gid) if gid else "maimai"
 
             lines = [f"🎮 当前游戏: {label}"]
@@ -214,7 +228,7 @@ class MaimaiPlugin(Star):
             label = GAME_LABELS.get(current, current)
             user_key = self._user_key(event)
             personal = self.user_store.get_game_mode(user_key)
-            gid = event.get_group_id()
+            gid = self._group_id(event)
             group_default = self.group_store.get_group_game_mode(gid) if gid else "maimai"
 
             lines = [f"🎮 游戏模式详情"]
@@ -244,7 +258,7 @@ class MaimaiPlugin(Star):
             if game not in VALID_GAMES:
                 yield self._message(f"无效游戏。可选: {', '.join(VALID_GAMES)}")
                 return
-            gid = event.get_group_id()
+            gid = self._group_id(event)
             if not gid:
                 yield self._message("此命令只能在群聊中使用。")
                 return
@@ -291,7 +305,7 @@ class MaimaiPlugin(Star):
             yield self._message("无效查分器。可选：水鱼、落雪")
             return
 
-        group_id = event.get_group_id()
+        group_id = self._group_id(event)
         if not group_id:
             yield self._message("此命令只能在群聊中使用。")
             return
@@ -302,7 +316,7 @@ class MaimaiPlugin(Star):
 
     def _get_prober(self, event: AstrMessageEvent, game: str) -> str:
         """获取当前群指定游戏的查分器。"""
-        gid = event.get_group_id()
+        gid = self._group_id(event)
         return self.group_store.get_prober(game, gid)
 
     # ================================================================
@@ -366,7 +380,7 @@ class MaimaiPlugin(Star):
             return
         text = event.get_message_str().strip()
         enable = "开启" in text
-        group_id = event.get_group_id()
+        group_id = self._group_id(event)
         if not group_id:
             yield self._message("此命令只能在群聊中使用。")
             return
@@ -647,7 +661,7 @@ class MaimaiPlugin(Star):
     async def _mai_guess(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        gid = event.get_group_id()
+        gid = self._group_id(event)
         if gid and not self.group_store.is_guess_enabled(gid):
             return
         async for r in guess_music_handler(event, self.music_data):
@@ -657,7 +671,7 @@ class MaimaiPlugin(Star):
     async def _mai_guess_pic(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        gid = event.get_group_id()
+        gid = self._group_id(event)
         if gid and not self.group_store.is_guess_enabled(gid):
             return
         async for r in guess_pic_handler(event, self.music_data):
@@ -675,7 +689,7 @@ class MaimaiPlugin(Star):
             return
         text = event.get_message_str().strip()
         enable = "开启" in text
-        group_id = event.get_group_id()
+        group_id = self._group_id(event)
         if not group_id:
             yield self._message("此命令只能在群聊中使用。")
             return
