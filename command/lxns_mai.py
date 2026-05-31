@@ -56,9 +56,10 @@ async def lxns_mai_b50_handler(
         try:
             song_data = await lxns.mai_song_list()
             for s in song_data.get("songs", []):
-                song_map[s["id"]] = s
-        except Exception:
-            pass
+                song_map[int(s["id"])] = s
+            logger.info(f"落雪歌曲数据加载: {len(song_map)} 首")
+        except Exception as e:
+            logger.warning(f"落雪歌曲数据加载失败: {e}")
 
         def _get_ds(song_id: int, level_index: int, song_type: str) -> str:
             """获取精确定数。"""
