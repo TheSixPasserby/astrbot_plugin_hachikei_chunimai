@@ -132,7 +132,7 @@ async def lxns_mai_b50_handler(
 
         if standard:
             lines.append("## 旧版本 Best 35\n")
-            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | Rating | FC |")
+            lines.append("| # | 曲名 | 定数 | 达成率 | DX分 | 评级 | Rating | FC |")
             lines.append("|---|------|------|--------|------|------|--------|-----|")
             for i, s in enumerate(standard[:35], 1):
                 fc = _fmt_fc(s.get("fc"))
@@ -140,13 +140,13 @@ async def lxns_mai_b50_handler(
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
                 r = s.get("dx_rating", 0) or s.get("rating", 0)
                 lines.append(
-                    f"| {i} | {ds} | {_fmt_song(s)} "
+                    f"| {i} | {_fmt_song(s)} | {ds} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {r:.1f} | {fc} |"
                 )
 
         if dx:
             lines.append("\n## 新版本 Best 15\n")
-            lines.append("| # | 定数 | 曲名 | 达成率 | DX分 | 评级 | Rating | FC |")
+            lines.append("| # | 曲名 | 定数 | 达成率 | DX分 | 评级 | Rating | FC |")
             lines.append("|---|------|------|--------|------|------|--------|-----|")
             for i, s in enumerate(dx[:15], 1):
                 fc = _fmt_fc(s.get("fc"))
@@ -154,7 +154,7 @@ async def lxns_mai_b50_handler(
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
                 r = s.get("dx_rating", 0) or s.get("rating", 0)
                 lines.append(
-                    f"| {i} | {ds} | {_fmt_song(s)} "
+                    f"| {i} | {_fmt_song(s)} | {ds} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {r:.1f} | {fc} |"
                 )
 

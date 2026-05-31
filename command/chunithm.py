@@ -101,8 +101,8 @@ async def chu_b30_handler(
         # Best 30
         if bests:
             lines.append("## Best 30\n")
-            lines.append("| # | 曲名 | 分数 | 评级 | Rating | FC |")
-            lines.append("|---|------|------|------|--------|-----|")
+            lines.append("| # | 曲名 | 定数 | 分数 | 评级 | Rating | FC |")
+            lines.append("|---|------|------|------|------|--------|-----|")
             total = 0
             for i, s in enumerate(bests[:30], 1):
                 r = s.get("rating", 0)
@@ -110,7 +110,7 @@ async def chu_b30_handler(
                 fc = CHU_FC_LABELS.get(s.get("full_combo", ""), "-").upper()
                 rank = chu_rank_label(s.get("score", 0))
                 lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} "
+                    f"| {i} | {_fmt_chu_song(s)} | {s.get('level', '?')} "
                     f"| {s.get('score', 0)} | {rank} | {r:.2f} | {fc} |"
                 )
             lines.append(f"\n**Best 30 均值: {total / min(30, len(bests)):.2f}**")
@@ -118,14 +118,14 @@ async def chu_b30_handler(
         # Selection 10
         if selections:
             lines.append("\n## Selection 10\n")
-            lines.append("| # | 曲名 | 分数 | Rating |")
-            lines.append("|---|------|------|--------|")
+            lines.append("| # | 曲名 | 定数 | 分数 | Rating |")
+            lines.append("|---|------|------|------|--------|")
             total = 0
             for i, s in enumerate(selections[:10], 1):
                 r = s.get("rating", 0)
                 total += r
                 lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} "
+                    f"| {i} | {_fmt_chu_song(s)} | {s.get('level', '?')} "
                     f"| {s.get('score', 0)} | {r:.2f} |"
                 )
             lines.append(f"\n**Selection 10 均值: {total / min(10, len(selections)):.2f}**")
@@ -133,14 +133,14 @@ async def chu_b30_handler(
         # New Best 20
         if new_bests:
             lines.append("\n## New Best 20\n")
-            lines.append("| # | 曲名 | 分数 | Rating |")
-            lines.append("|---|------|------|--------|")
+            lines.append("| # | 曲名 | 定数 | 分数 | Rating |")
+            lines.append("|---|------|------|------|--------|")
             total = 0
             for i, s in enumerate(new_bests[:20], 1):
                 r = s.get("rating", 0)
                 total += r
                 lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} "
+                    f"| {i} | {_fmt_chu_song(s)} | {s.get('level', '?')} "
                     f"| {s.get('score', 0)} | {r:.2f} |"
                 )
             lines.append(f"\n**New Best 20 均值: {total / min(20, len(new_bests)):.2f}**")
