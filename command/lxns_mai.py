@@ -67,6 +67,7 @@ async def lxns_mai_b50_handler(
             logger.info(f"落雪歌曲定数加载: {len(ds_map)} 条")
         except Exception as e:
             logger.warning(f"落雪歌曲数据加载失败: {e}")
+            yield event.plain_result("⚠️ 从落雪获取定数信息失败，将使用本地数据（部分歌曲定数可能缺失）。")
         # 2. 从本地 DivingFish 数据补充（ID 映射：水鱼5位=落雪4位+10000）
         if music_data:
             for m in music_data.music_list:
