@@ -137,15 +137,15 @@ async def guess_solve_handler(
     data_mgr: MusicDataManager,
     **_: Any,
 ):
-    """猜歌答案匹配（在全局消息处理中调用）。"""
+    """猜歌答案匹配（在全局消息处理中调用）。匹配成功时 yield 结果，否则不 yield。"""
     group_id = event.get_group_id()
     if not group_id or not data_mgr.guess_manager.is_active(group_id):
-        return False
+        return
 
     text = event.get_message_str().strip().lower()
     guess_data = data_mgr.guess_manager.get(group_id)
     if not guess_data:
-        return False
+        return
 
     # 检查答案
     for ans in guess_data.answer:
@@ -155,9 +155,7 @@ async def guess_solve_handler(
             yield event.plain_result(
                 f"🎉 回答正确！答案是：{music.title} (ID:{music.id})"
             )
-            return True
-
-    return False
+            return
 
 
 async def guess_pic_handler(
