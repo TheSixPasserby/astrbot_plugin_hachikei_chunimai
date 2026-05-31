@@ -81,28 +81,36 @@ async def b50_handler(
         lines = [f"# 🎵 {name} 的 Best 50\n"]
         lines.append(f"**Rating: {user_info.rating}**\n")
 
+        _DIFF_LABELS = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "RE:MASTER"]
+
+        def _fmt_song(c) -> str:
+            diff = _DIFF_LABELS[c.level_index] if c.level_index < 5 else "?"
+            return f"【DX】{c.title} [{diff}]"
+
         if user_info.charts.sd:
-            lines.append("## SD Best 35\n")
-            lines.append("| # | 难度 | 曲名 | 达成率 | Ra |")
-            lines.append("|---|------|------|--------|-----|")
+            sd_total = sum(c.ra for c in user_info.charts.sd)
+            lines.append(f"## SD Best 35 (总Ra: {sd_total})\n")
+            lines.append("| # | 定数 | 曲名 | 达成率 | 评级 | Ra | FC |")
+            lines.append("|---|------|------|--------|------|-----|-----|")
             for i, c in enumerate(user_info.charts.sd[:35], 1):
-                label = diff_index_to_label.get(c.level_index, "?")
                 fc = _fmt_fc(c.fc)
                 rate = _fmt_rate(c.rate)
+                ds = f"{c.ds:.1f}" if c.ds else "?"
                 lines.append(
-                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
+                    f"| {i} | {ds} | {_fmt_song(c)} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
                 )
 
         if user_info.charts.dx:
-            lines.append("\n## DX Best 15\n")
-            lines.append("| # | 难度 | 曲名 | 达成率 | 评级 | Ra | FC |")
+            dx_total = sum(c.ra for c in user_info.charts.dx)
+            lines.append(f"\n## DX Best 15 (总Ra: {dx_total})\n")
+            lines.append("| # | 定数 | 曲名 | 达成率 | 评级 | Ra | FC |")
             lines.append("|---|------|------|--------|------|-----|-----|")
             for i, c in enumerate(user_info.charts.dx[:15], 1):
-                label = diff_index_to_label.get(c.level_index, "?")
                 fc = _fmt_fc(c.fc)
                 rate = _fmt_rate(c.rate)
+                ds = f"{c.ds:.1f}" if c.ds else "?"
                 lines.append(
-                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
+                    f"| {i} | {ds} | {_fmt_song(c)} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
                 )
 
         # 查分器状态

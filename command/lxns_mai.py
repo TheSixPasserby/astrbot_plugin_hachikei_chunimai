@@ -55,24 +55,23 @@ async def lxns_mai_b50_handler(
 
         # 构建歌曲定数查找表：{(song_id, difficulty): level_value}
         ds_map: dict[tuple[int, int], float] = {}
-        # 优先从本地 DivingFish 数据获取
+        # 从本地 DivingFish 数据获取
         if music_data:
             for m in music_data.music_list:
                 mid = int(m.id)
                 for i, d in enumerate(m.ds):
                     ds_map[(mid, i)] = d
-        # 本地没有的再从落雪 API 补充
-        if not ds_map:
-            try:
-                song_data = await lxns.mai_song_list()
-                for s in song_data.get("songs", []):
-                    sid = int(s["id"])
-                    for diff in s.get("difficulties", {}).get("standard", []):
-                        ds_map[(sid, diff["difficulty"])] = diff["level_value"]
-                    for diff in s.get("difficulties", {}).get("dx", []):
-                        ds_map[(sid, diff["difficulty"])] = diff["level_value"]
-            except Exception as e:
-                logger.warning(f"落雪歌曲数据加载失败: {e}")
+        # 从落雪 API 补充（覆盖本地没有的歌曲）
+        try:
+            song_data = await lxns.mai_song_list()
+            for s in song_data.get("songs", []):
+                sid = int(s["id"])
+                for diff in s.get("difficulties", {}).get("standard", []):
+                    ds_map.setdefault((sid, diff["difficulty"]), diff["level_value"])
+                for diff in s.get("difficulties", {}).get("dx", []):
+                    ds_map.setdefault((sid, diff["difficulty"]), diff["level_value"])
+        except Exception as e:
+            logger.warning(f"落雪歌曲数据加载失败: {e}")
 
         def _get_ds(song_id: int, level_index: int) -> str:
             lv = ds_map.get((song_id, level_index))
