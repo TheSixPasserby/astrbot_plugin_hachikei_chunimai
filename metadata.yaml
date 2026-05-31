@@ -1,0 +1,7 @@
+name: astrbot_plugin_hachikei_chunimai
+display_name: maimai DX 综合助手
+desc: maimai DX 全功能插件：查分、搜歌、猜歌、牌桌、别名、机厅排队等。
+version: v0.1.0
+author: TheSixPasserby
+repo: ""
+astrbot_version: ">=4.5.2"

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+/static/music_data.json
+/static/music_chart.json
+/static/music_alias.json
+/static/local_alias.json
+/static/arcade/
+/static/cover/
+*.log

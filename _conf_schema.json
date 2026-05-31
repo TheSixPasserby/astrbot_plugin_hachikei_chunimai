@@ -1,0 +1,75 @@
+{
+  "bot_name": {
+    "type": "string",
+    "default": "mai-bot",
+    "description": "机器人名称",
+    "hint": "用于帮助菜单和部分回复中显示的机器人名称"
+  },
+  "enable_reply": {
+    "type": "bool",
+    "default": true,
+    "description": "回复引用消息",
+    "hint": "开启后机器人的回复会引用用户的消息"
+  },
+  "maimaidxtoken": {
+    "type": "string",
+    "default": "",
+    "description": "DivingFish 查分器 Token",
+    "hint": "在 diving-fish.com 个人设置中获取的 Developer Token"
+  },
+  "maimai_http_proxy": {
+    "type": "string",
+    "default": "",
+    "description": "HTTP 代理地址",
+    "hint": "留空则不使用代理，格式如 http://127.0.0.1:7890"
+  },
+  "enable_guess_game": {
+    "type": "bool",
+    "default": true,
+    "description": "启用猜歌功能",
+    "hint": "关闭后群内无法使用猜歌和猜曲绘"
+  },
+  "enable_arcade": {
+    "type": "bool",
+    "default": true,
+    "description": "启用机厅功能",
+    "hint": "关闭后群内无法使用机厅排队相关命令"
+  },
+  "enable_alias_push": {
+    "type": "bool",
+    "default": false,
+    "description": "启用别名推送",
+    "hint": "开启后会连接 Yuzuchan WebSocket 接收别名变更通知"
+  },
+  "alias_push_uuid": {
+    "type": "string",
+    "default": "",
+    "description": "别名推送 UUID",
+    "hint": "Yuzuchan 别名推送服务的 UUID 标识"
+  },
+  "request_timeout_seconds": {
+    "type": "int",
+    "default": 30,
+    "description": "请求超时时间（秒）",
+    "hint": "HTTP 请求的超时时间",
+    "slider": {"min": 5, "max": 60, "step": 5}
+  },
+  "kook_token": {
+    "type": "string",
+    "default": "",
+    "description": "KOOK Bot Token",
+    "hint": "用于在 KOOK 平台撤回敏感消息（留空则不撤回）"
+  },
+  "lxns_dev_key": {
+    "type": "string",
+    "default": "",
+    "description": "落雪开发者 API 密钥",
+    "hint": "在 maimai.lxns.net/developer 申请，用于访问其他玩家数据"
+  },
+  "lxns_user_token": {
+    "type": "string",
+    "default": "",
+    "description": "落雪个人 API 密钥",
+    "hint": "在 maimai.lxns.net/user/profile 生成，用于访问自己的数据"
+  }
+}
