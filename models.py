@@ -53,6 +53,15 @@ class Music(BaseModel):
     diff: Optional[list[int]] = []
 
 
+class RaMusic(BaseModel):
+    """单曲 Rating 构成数据。"""
+    id: str
+    ds: float
+    lv: str
+    lvp: str
+    type: str
+
+
 # --- 成绩相关 ---
 
 class PlayInfo(BaseModel):
