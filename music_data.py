@@ -14,9 +14,29 @@ from typing import Any, Union
 import numpy as np
 
 from .models import (
-    Alias, AliasStatus, GuessData, Music, MusicList, Notes1, Notes2,
+    Alias, AliasStatus, GuessData, Music, Notes1, Notes2,
     PlayInfoDefault, RaMusic, Stats,
 )
+
+
+class MusicList(list):
+    """歌曲列表，支持按 ID/标题查询和过滤。"""
+
+    def by_id(self, music_id: int | str) -> Music | None:
+        for m in self:
+            if m.id == str(music_id):
+                return m
+        return None
+
+    def by_title(self, title: str) -> Music | None:
+        for m in self:
+            if m.title == title:
+                return m
+        return None
+
+    def random(self) -> Music | None:
+        import secrets
+        return secrets.choice(self) if self else None
 from .api_client import MaimaiAPI
 
 try:
