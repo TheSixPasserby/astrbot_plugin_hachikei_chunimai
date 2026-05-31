@@ -18,6 +18,7 @@ from .arcade_data import ArcadeDataManager
 from .lxns_client import LxnsAPI
 from .chunithm_data import ChuDataManager
 from .command.chunithm import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler
+from .command.lxns_mai import lxns_mai_b50_handler, lxns_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
     alias_global_push_handler, alias_local_apply_handler, alias_push_handler,
@@ -427,7 +428,7 @@ class MaimaiPlugin(Star):
             return
         prober = self._get_prober(event, "maimai")
         if prober == "lxns":
-            async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
+            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
                 yield r
         else:
             async for r in b50_handler(event, self.api, self.music_data, qq=qq):
@@ -443,7 +444,7 @@ class MaimaiPlugin(Star):
             return
         prober = self._get_prober(event, "maimai")
         if prober == "lxns":
-            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq):
                 yield r
         else:
             async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
@@ -520,8 +521,11 @@ class MaimaiPlugin(Star):
         prober = self._get_prober(event, game)
         label = GAME_LABELS.get(game, game)
         yield self._message(f"🎮 正在为 [{label}] 生成 B50/B30，请稍候...")
-        if game == "chunithm" or prober == "lxns":
+        if game == "chunithm":
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
+                yield r
+        elif prober == "lxns":
+            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
                 yield r
         else:
             async for r in b50_handler(event, self.api, self.music_data, qq=qq):
@@ -537,8 +541,11 @@ class MaimaiPlugin(Star):
             return
         game = self._resolve_game(event)
         prober = self._get_prober(event, game)
-        if game == "chunithm" or prober == "lxns":
+        if game == "chunithm":
             async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+                yield r
+        elif prober == "lxns":
+            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq):
                 yield r
         else:
             async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
