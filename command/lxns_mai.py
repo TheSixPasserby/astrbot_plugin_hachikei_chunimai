@@ -17,6 +17,18 @@ def _fmt_fc(fs: str | None) -> str:
     }
     return mapping.get(fs.lower(), fs.upper())
 
+
+def _fmt_rate(rate: str | None) -> str:
+    """格式化评级标签：sssp -> SSS+, sss -> SSS 等。"""
+    if not rate:
+        return "-"
+    mapping = {
+        "sssp": "SSS+", "sss": "SSS", "ssp": "SS+", "ss": "SS",
+        "sp": "S+", "s": "S", "aaa": "AAA", "aa": "AA", "a": "A",
+        "bbb": "BBB", "bb": "BB", "b": "B", "c": "C", "d": "D",
+    }
+    return mapping.get(rate.lower(), rate.upper())
+
 try:
     from astrbot.api import logger
 except ImportError:
@@ -87,7 +99,7 @@ async def lxns_mai_b50_handler(
             lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(standard[:35], 1):
                 fc = _fmt_fc(s.get("fc"))
-                rate = (s.get("rate") or "").upper()
+                rate = _fmt_rate(s.get("rate"))
                 lines.append(
                     f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"
@@ -99,7 +111,7 @@ async def lxns_mai_b50_handler(
             lines.append("|---|------|------|--------|------|------|-----|")
             for i, s in enumerate(dx[:15], 1):
                 fc = _fmt_fc(s.get("fc"))
-                rate = (s.get("rate") or "").upper()
+                rate = _fmt_rate(s.get("rate"))
                 lines.append(
                     f"| {i} | {s.get('level', '?')} | {s.get('song_name', '?')} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {fc} |"

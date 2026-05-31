@@ -105,7 +105,7 @@ async def chu_b30_handler(
                 rank = chu_rank_label(s.get("score", 0))
                 lines.append(
                     f"| {i} | {s.get('song_name', '?')} | {s.get('level', '?')} "
-                    f"| {s.get('score', 0)} | {rank} | {r:.1f} | {fc} |"
+                    f"| {s.get('score', 0)} | {rank} | {r:.2f} | {fc} |"
                 )
             lines.append(f"\n**Best 30 均值: {total / min(30, len(bests)):.2f}**")
 
@@ -120,7 +120,7 @@ async def chu_b30_handler(
                 total += r
                 lines.append(
                     f"| {i} | {s.get('song_name', '?')} | {s.get('level', '?')} "
-                    f"| {s.get('score', 0)} | {r:.1f} |"
+                    f"| {s.get('score', 0)} | {r:.2f} |"
                 )
             lines.append(f"\n**Selection 10 均值: {total / min(10, len(selections)):.2f}**")
 
@@ -135,7 +135,7 @@ async def chu_b30_handler(
                 total += r
                 lines.append(
                     f"| {i} | {s.get('song_name', '?')} | {s.get('level', '?')} "
-                    f"| {s.get('score', 0)} | {r:.1f} |"
+                    f"| {s.get('score', 0)} | {r:.2f} |"
                 )
             lines.append(f"\n**New Best 20 均值: {total / min(20, len(new_bests)):.2f}**")
 

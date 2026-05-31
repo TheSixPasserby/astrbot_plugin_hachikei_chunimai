@@ -19,6 +19,18 @@ def _fmt_fc(fs: str | None) -> str:
         "fsdp": "FDX+", "fsd": "FDX", "fsp": "FS+", "fs": "FS", "sync": "SYNC",
     }
     return mapping.get(fs.lower(), fs.upper())
+
+
+def _fmt_rate(rate: str | None) -> str:
+    """格式化评级标签：sssp -> SSS+ 等。"""
+    if not rate:
+        return "-"
+    mapping = {
+        "sssp": "SSS+", "sss": "SSS", "ssp": "SS+", "ss": "SS",
+        "sp": "S+", "s": "S", "aaa": "AAA", "aa": "AA", "a": "A",
+        "bbb": "BBB", "bb": "BB", "b": "B", "c": "C", "d": "D",
+    }
+    return mapping.get(rate.lower(), rate.upper())
 from ..image_utils import pie_chart, image_to_base64
 
 try:
@@ -76,19 +88,21 @@ async def b50_handler(
             for i, c in enumerate(user_info.charts.sd[:35], 1):
                 label = diff_index_to_label.get(c.level_index, "?")
                 fc = _fmt_fc(c.fc)
+                rate = _fmt_rate(c.rate)
                 lines.append(
-                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} | {fc} |"
+                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
                 )
 
         if user_info.charts.dx:
             lines.append("\n## DX Best 15\n")
-            lines.append("| # | 难度 | 曲名 | 达成率 | Ra | FC |")
-            lines.append("|---|------|------|--------|-----|-----|")
+            lines.append("| # | 难度 | 曲名 | 达成率 | 评级 | Ra | FC |")
+            lines.append("|---|------|------|--------|------|-----|-----|")
             for i, c in enumerate(user_info.charts.dx[:15], 1):
                 label = diff_index_to_label.get(c.level_index, "?")
                 fc = _fmt_fc(c.fc)
+                rate = _fmt_rate(c.rate)
                 lines.append(
-                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {c.ra} | {fc} |"
+                    f"| {i} | {label} | {c.title} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
                 )
 
         # 查分器状态
