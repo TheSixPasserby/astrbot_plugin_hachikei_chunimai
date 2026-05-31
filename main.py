@@ -145,16 +145,24 @@ class MaimaiPlugin(Star):
 
     def _group_id(self, event: AstrMessageEvent) -> str:
         """跨平台获取群/频道 ID。"""
+        # 1. 标准方法
         gid = event.get_group_id()
         if gid:
             return str(gid)
-        # QQ 官方 API 用 channel_id
+        # 2. 直接读 message_obj 属性
         try:
             msg = event.message_obj
-            for attr in ("group_id", "channel_id"):
+            for attr in ("group_id", "channel_id", "group_openid"):
                 val = getattr(msg, attr, None)
                 if val:
                     return str(val)
+        except Exception:
+            pass
+        # 3. QQ 官方 API fallback: session_id 就是 group_openid
+        try:
+            sid = event.session_id
+            if sid:
+                return str(sid)
         except Exception:
             pass
         return ""
