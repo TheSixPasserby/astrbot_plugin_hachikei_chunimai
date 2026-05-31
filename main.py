@@ -264,6 +264,38 @@ class MaimaiPlugin(Star):
         yield self._message(f"✅ 个人游戏已设为 {label}。")
 
     # ================================================================
+    # 绑定 QQ
+    # ================================================================
+
+    @command("bindqq", alias={"绑定qq", "绑定QQ"})
+    async def _bind_qq(self, event: AstrMessageEvent):
+        args = event.get_message_str().strip().split()
+        if len(args) < 2 or not args[1].isdigit():
+            yield self._message("用法：bindqq <QQ号>\n绑定后查分命令将使用该 QQ 号查询。")
+            return
+        qq = args[1].strip()
+        user_key = self._user_key(event)
+        await self.user_store.set_qq(user_key, qq)
+        yield self._message(f"✅ 已绑定 QQ: {qq}")
+
+    def _get_qq(self, event: AstrMessageEvent) -> int | None:
+        """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
+        # 1. 尝试从 @提及 获取
+        try:
+            from astrbot.api.message_components import At
+            for comp in event.get_messages():
+                if isinstance(comp, At):
+                    return int(comp.qq)
+        except Exception:
+            pass
+        # 2. 从绑定记录获取
+        user_key = self._user_key(event)
+        qq = self.user_store.get_qq(user_key)
+        if qq and qq.isdigit():
+            return int(qq)
+        return None
+
+    # ================================================================
     # 帮助
     # ================================================================
 
@@ -319,21 +351,24 @@ class MaimaiPlugin(Star):
     async def _mai_b50(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in b50_handler(event, self.api, self.music_data):
+        qq = self._get_qq(event)
+        async for r in b50_handler(event, self.api, self.music_data, qq=qq):
             yield r
 
     @command("maiminfo")
     async def _mai_minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in minfo_handler(event, self.api, self.music_data):
+        qq = self._get_qq(event)
+        async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
             yield r
 
     @command("maiginfo")
     async def _mai_ginfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in ginfo_handler(event, self.api, self.music_data):
+        qq = self._get_qq(event)
+        async for r in ginfo_handler(event, self.api, self.music_data, qq=qq):
             yield r
 
     @command("mailine")
@@ -383,26 +418,28 @@ class MaimaiPlugin(Star):
     async def _b50(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
+        qq = self._get_qq(event)
         game = self._resolve_game(event)
         label = GAME_LABELS.get(game, game)
         yield self._message(f"🎮 正在为 [{label}] 生成 B50/B30，请稍候...")
         if game == "chunithm":
-            async for r in chu_b30_handler(event, self.lxns, self.chu_data):
+            async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         else:
-            async for r in b50_handler(event, self.api, self.music_data):
+            async for r in b50_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
     @command("minfo")
     async def _minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
+        qq = self._get_qq(event)
         game = self._resolve_game(event)
         if game == "chunithm":
-            async for r in chu_minfo_handler(event, self.lxns, self.chu_data):
+            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         else:
-            async for r in minfo_handler(event, self.api, self.music_data):
+            async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
     @command("ginfo")
@@ -468,9 +505,10 @@ class MaimaiPlugin(Star):
     async def _my_ranking(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
+        qq = self._get_qq(event)
         game = self._resolve_game(event)
         if game == "maimai":
-            async for r in my_ranking_handler(event, self.api):
+            async for r in my_ranking_handler(event, self.api, qq=qq):
                 yield r
         else:
             yield self._message("CHUNITHM 暂无全局排行榜，请使用 `chub30` 查看个人 Rating 构成。")

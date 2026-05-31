@@ -23,6 +23,7 @@ class UserRecord:
     last_sync_at: float = 0.0
     last_sync_result: str = ""
     game_mode: str = ""  # 空=未设置，跟随群规则；非空=个人覆盖
+    qq: str = ""  # 绑定的 QQ 号
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> UserRecord:
@@ -118,6 +119,20 @@ class UserStore:
         d = self._data.get(user_key)
         if d:
             return d.get("game_mode", "") or ""
+        return ""
+
+    async def set_qq(self, user_key: str, qq: str) -> None:
+        """绑定 QQ 号。"""
+        async with self._lock:
+            rec = self._data.setdefault(user_key, {})
+            rec["qq"] = qq
+            await self.save()
+
+    def get_qq(self, user_key: str) -> str:
+        """获取绑定的 QQ 号。"""
+        d = self._data.get(user_key)
+        if d:
+            return d.get("qq", "") or ""
         return ""
 
 

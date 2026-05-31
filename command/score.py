@@ -37,13 +37,15 @@ async def b50_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """生成 Best 50 图片。"""
     try:
         args = event.get_message_str().strip().split(maxsplit=1)
         username = args[1].strip() if len(args) > 1 else None
-        qq = _extract_qq_from_at(event)
+        if qq is None:
+            qq = _extract_qq_from_at(event)
 
         user_info = await api.query_user_b50(qqid=qq, username=username)
 
@@ -87,6 +89,7 @@ async def minfo_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """查询个人歌曲成绩。"""
@@ -110,7 +113,8 @@ async def minfo_handler(
                 yield event.plain_result("未找到匹配的歌曲。")
                 return
 
-        qq = _extract_qq_from_at(event)
+        if qq is None:
+            qq = _extract_qq_from_at(event)
         try:
             records = await api.query_user_record_dev(qqid=qq, music_id=int(music.id))
         except MusicNotPlayError:
@@ -140,6 +144,7 @@ async def ginfo_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """全球歌曲统计（用 Pillow 饼图替代 pyecharts + Playwright）。"""
@@ -347,11 +352,13 @@ async def ranking_handler(
 async def my_ranking_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
+    qq: int | None = None,
     **_: Any,
 ):
     """查看我的排名。"""
     try:
-        qq = _extract_qq_from_at(event)
+        if qq is None:
+            qq = _extract_qq_from_at(event)
         user_info = await api.query_user_b50(qqid=qq)
         ranking = await api.rating_ranking()
 

@@ -31,6 +31,7 @@ async def chu_b30_handler(
     event: AstrMessageEvent,
     lxns: LxnsAPI,
     data_mgr: ChuDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """CHUNITHM B30 查询。"""
@@ -38,15 +39,15 @@ async def chu_b30_handler(
         args = event.get_message_str().strip().split(maxsplit=1)
         query = args[1].strip() if len(args) > 1 else None
 
-        # 从 @提及 获取 QQ
-        qq = None
-        try:
-            from astrbot.api.message_components import At
-            for comp in event.get_messages():
-                if isinstance(comp, At):
-                    qq = int(comp.qq)
-        except Exception:
-            pass
+        # 从 @提及 获取 QQ（如果外部未传入）
+        if qq is None:
+            try:
+                from astrbot.api.message_components import At
+                for comp in event.get_messages():
+                    if isinstance(comp, At):
+                        qq = int(comp.qq)
+            except Exception:
+                pass
 
         # 获取玩家信息
         player = None
@@ -131,6 +132,7 @@ async def chu_minfo_handler(
     event: AstrMessageEvent,
     lxns: LxnsAPI,
     data_mgr: ChuDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """CHUNITHM 单曲成绩查询。"""
@@ -142,15 +144,15 @@ async def chu_minfo_handler(
 
         query = args[1].strip()
 
-        # 获取玩家 QQ
-        qq = None
-        try:
-            from astrbot.api.message_components import At
-            for comp in event.get_messages():
-                if isinstance(comp, At):
-                    qq = int(comp.qq)
-        except Exception:
-            pass
+        # 从 @提及 获取 QQ（如果外部未传入）
+        if qq is None:
+            try:
+                from astrbot.api.message_components import At
+                for comp in event.get_messages():
+                    if isinstance(comp, At):
+                        qq = int(comp.qq)
+            except Exception:
+                pass
 
         if not qq:
             yield event.plain_result("请 @ 一位已绑定落雪查分器的用户。")
