@@ -12,7 +12,6 @@ from astrbot.api.event.filter import EventMessageType, command, event_message_ty
 from astrbot.api.star import Context, Star, StarTools
 
 from .api_client import MaimaiAPI
-from .arcade_data import ArcadeDataManager
 from .lxns_client import LxnsAPI
 from .chunithm_data import ChuDataManager
 from .command.chunithm import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler
@@ -21,11 +20,6 @@ from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
     alias_global_push_handler, alias_local_apply_handler, alias_push_handler,
     alias_query_handler, alias_status_handler, update_alias_handler,
-)
-from .command.arcade import (
-    add_arcade_handler, arcade_alias_handler, arcade_person_handler,
-    arcade_query_handler, check_subscribe_handler, delete_arcade_handler,
-    modify_arcade_handler, search_arcade_handler, subscribe_handler,
 )
 from .command.guess import (
     guess_music_handler, guess_pic_handler, guess_solve_handler,
@@ -57,7 +51,7 @@ GAME_LABELS = {"maimai": "maimai DX", "chunithm": "CHUNITHM"}
 @register(
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
-    "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名、机厅排队。",
+    "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
     "0.1.0",
     "",
 )
@@ -82,7 +76,6 @@ class MaimaiPlugin(Star):
         self.group_store = GroupConfigStore(data_dir)
         self.music_data = MusicDataManager(self.api, data_dir)
         self.chu_data = ChuDataManager(self.lxns, data_dir)
-        self.arcade_data = ArcadeDataManager(data_dir)
         self.alias_push = AliasPushService(self.api, self.config.get("alias_push_uuid", ""))
 
         # 管理员 ID
@@ -848,63 +841,6 @@ class MaimaiPlugin(Star):
             yield r
 
     # ================================================================
-    # 共用命令 — 机厅（不区分游戏）
-    # ================================================================
-
-    @command("arcadeadd", alias={"添加机厅", "新增机厅"})
-    async def _add_arcade(self, event: AstrMessageEvent):
-        if not self._is_admin(event):
-            yield self._message("需要管理员权限。")
-            return
-        async for r in add_arcade_handler(event, self.arcade_data):
-            yield r
-
-    @command("arcadedel", alias={"删除机厅", "移除机厅"})
-    async def _delete_arcade(self, event: AstrMessageEvent):
-        if not self._is_admin(event):
-            yield self._message("需要管理员权限。")
-            return
-        async for r in delete_arcade_handler(event, self.arcade_data):
-            yield r
-
-    @command("arcadeedit", alias={"修改机厅", "编辑机厅"})
-    async def _modify_arcade(self, event: AstrMessageEvent):
-        if not self._is_admin(event):
-            yield self._message("需要管理员权限。")
-            return
-        async for r in modify_arcade_handler(event, self.arcade_data):
-            yield r
-
-    @command("arcadealias", alias={"添加机厅别名", "删除机厅别名"})
-    async def _arcade_alias(self, event: AstrMessageEvent):
-        if not self._is_admin(event):
-            yield self._message("需要管理员权限。")
-            return
-        async for r in arcade_alias_handler(event, self.arcade_data):
-            yield r
-
-    @command("arcadesearch", alias={"查找机厅", "查询机厅", "机厅查找", "机厅查询"})
-    async def _search_arcade(self, event: AstrMessageEvent):
-        if self._is_group_disabled(event):
-            return
-        async for r in search_arcade_handler(event, self.arcade_data):
-            yield r
-
-    @command("arcadesub", alias={"订阅机厅", "取消订阅机厅", "取消订阅"})
-    async def _subscribe_arcade(self, event: AstrMessageEvent):
-        if self._is_group_disabled(event):
-            return
-        async for r in subscribe_handler(event, self.arcade_data):
-            yield r
-
-    @command("arcadestatus", alias={"查看订阅", "查看订阅机厅"})
-    async def _check_sub(self, event: AstrMessageEvent):
-        if self._is_group_disabled(event):
-            return
-        async for r in check_subscribe_handler(event, self.arcade_data):
-            yield r
-
-    # ================================================================
     # 正则匹配（不需要唤醒前缀）
     # ================================================================
 
@@ -991,20 +927,6 @@ class MaimaiPlugin(Star):
         if game == "chunithm":
             # TODO: chunithm 正则命令
             pass
-
-        # --- 共用：机厅（不区分游戏） ---
-
-        # 机厅排队查询
-        if re.match(r"^(机厅几人|jtj|.+有几人|.+有几卡|.+几人|.+几卡|jr)$", text, re.I):
-            async for r in arcade_query_handler(event, self.arcade_data):
-                yield r
-                return
-
-        # 机厅人数设置
-        if re.match(r"^.+\s?(设置|设定|加|减|\+|-)\s?\d+(人|卡)?$", text):
-            async for r in arcade_person_handler(event, self.arcade_data):
-                yield r
-                return
 
     # ================================================================
     # 内置功能

@@ -29,12 +29,6 @@
     "description": "启用猜歌功能",
     "hint": "关闭后群内无法使用猜歌和猜曲绘"
   },
-  "enable_arcade": {
-    "type": "bool",
-    "default": true,
-    "description": "启用机厅功能",
-    "hint": "关闭后群内无法使用机厅排队相关命令"
-  },
   "enable_alias_push": {
     "type": "bool",
     "default": false,

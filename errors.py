@@ -47,10 +47,6 @@ class AliasNotFoundError(MaimaiError):
     """别名未找到。"""
 
 
-class ArcadeNotFoundError(MaimaiError):
-    """机厅未找到。"""
-
-
 class PermissionDeniedError(MaimaiError):
     """权限不足。"""
 
@@ -71,7 +67,6 @@ _ERROR_MESSAGES: dict[type[MaimaiError], str] = {
     MusicNotPlayError: "未查询到该歌曲的游玩记录。",
     MusicNotFoundError: "未找到匹配的歌曲。",
     AliasNotFoundError: "未找到匹配的别名。",
-    ArcadeNotFoundError: "未找到匹配的机厅。",
     PermissionDeniedError: "权限不足，需要管理员权限。",
 }
 

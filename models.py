@@ -198,20 +198,3 @@ class GuessData(BaseModel):
 class APIResult(BaseModel):
     code: int = 0
     content: Union[dict, list, str]
-
-
-# --- 机厅 ---
-
-class Arcade(BaseModel):
-    name: str
-    address: str = ""
-    machine_count: int = 0
-    aliases: list[str] = []
-
-
-class ArcadeQueue(BaseModel):
-    arcade_name: str
-    person_count: int = 0
-    card_count: int = 0
-    updated_by: str = ""
-    updated_at: float = 0.0

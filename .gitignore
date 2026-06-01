@@ -9,6 +9,5 @@ build/
 /static/music_chart.json
 /static/music_alias.json
 /static/local_alias.json
-/static/arcade/
 /static/cover/
 *.log
