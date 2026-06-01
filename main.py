@@ -367,7 +367,7 @@ class MaiChuPlugin(Star):
                 f"?response_type=code"
                 f"&client_id={client_id}"
                 f"&redirect_uri={redirect_uri}"
-                f"&scope=read_player"
+                f"&scope=read_user_profile+read_player+write_player"
             )
             yield self._message(
                 f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
