@@ -158,17 +158,7 @@ class QRSyncService:
         if not isinstance(creds, str) or not creds:
             raise RuntimeError("二维码返回的凭据格式异常。")
 
-        # 尝试获取玩家名
-        player_name = ""
-        try:
-            arcade_id = self._identifier(credentials=creds)
-            player = await self.client.players(arcade_id, provider=self._arcade_provider())
-            player_name = str(getattr(player, "name", "") or "")
-            logger.info(f"获取到玩家名: {player_name}, player 对象: {player}")
-        except Exception as e:
-            logger.warning(f"获取玩家名失败: {e}")
-
-        return {"credentials": creds, "player_name": player_name}
+        return {"credentials": creds, "player_name": ""}
 
     async def sync_creds_to_divingfish(self, arcade_creds: str, import_token: str) -> SyncResult:
         """用缓存的凭证同步到水鱼。"""
@@ -186,7 +176,6 @@ class QRSyncService:
         """用缓存的凭证同步到落雪。"""
         arcade_id = self._identifier(credentials=arcade_creds)
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
-        logger.info(f"scores 对象属性: {[a for a in dir(scores) if not a.startswith('_')]}")
         target_id = self._identifier(credentials=access_token)
         await self.client.updates(target_id, scores.scores, provider=self._lxns_provider())
         return SyncResult(
