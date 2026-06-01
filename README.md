@@ -141,20 +141,19 @@ AstrBot 插件，支持双游戏查分、搜歌、猜歌、牌桌、别名管理
 ├── main.py              # 插件入口、命令路由
 ├── api_client.py        # DivingFish + Yuzuchan API
 ├── lxns_client.py       # Lxns API 客户端
-├── music_data.py        # maimai 歌曲/别名/猜歌数据
-├── chunithm_data.py     # CHUNITHM 歌曲数据
+├── mai_data.py          # maimai 歌曲/别名/猜歌数据
+├── chu_data.py          # CHUNITHM 歌曲数据
 ├── storage.py           # 用户数据、群配置持久化
 ├── models.py            # Pydantic 数据模型
 ├── errors.py            # 自定义异常
 ├── utils.py             # 通用工具函数
 ├── image_utils.py       # PIL 图片工具
 ├── command/
-│   ├── score.py         # maimai 查分命令
-│   ├── lxns_mai.py      # 落雪 maimai 命令
+│   ├── mai_score.py     # maimai 查分（DivingFish + Lxns）
 │   ├── chunithm.py      # CHUNITHM 命令
-│   ├── search.py        # 搜索命令
-│   ├── table.py         # 牌桌/进度命令
-│   ├── guess.py         # 猜歌游戏
+│   ├── mai_search.py    # 搜索命令
+│   ├── mai_table.py     # 牌桌/进度命令
+│   ├── mai_guess.py     # 猜歌游戏
 │   ├── alias.py         # 别名管理 + 推送
 │   └── help.py          # 帮助菜单
 ├── _conf_schema.json    # 配置 schema
