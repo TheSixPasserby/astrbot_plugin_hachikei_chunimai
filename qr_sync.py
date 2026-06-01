@@ -190,12 +190,16 @@ class QRSyncService:
     async def sync_to_divingfish(self, sgid: str, import_token: str) -> SyncResult:
         """用 SGID 直接同步到水鱼。"""
         creds = await self.get_arcade_credentials(sgid)
-        return await self.sync_creds_to_divingfish(creds["credentials"], import_token)
+        result = await self.sync_creds_to_divingfish(creds["credentials"], import_token)
+        result.player_name = creds.get("player_name", "")
+        return result
 
     async def sync_to_lxns(self, sgid: str, access_token: str) -> SyncResult:
         """用 SGID 直接同步到落雪。"""
         creds = await self.get_arcade_credentials(sgid)
-        return await self.sync_creds_to_lxns(creds["credentials"], access_token)
+        result = await self.sync_creds_to_lxns(creds["credentials"], access_token)
+        result.player_name = creds.get("player_name", "")
+        return result
 
     async def close(self) -> None:
         if self._client:
