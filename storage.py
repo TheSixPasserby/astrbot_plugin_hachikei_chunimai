@@ -150,6 +150,14 @@ class UserStore:
             return d.get("lxns_token", "") or ""
         return ""
 
+    async def remove_lxns_token(self, user_key: str) -> None:
+        """删除用户的落雪 OAuth token。"""
+        async with self._lock:
+            d = self._data.get(user_key)
+            if d and "lxns_token" in d:
+                del d["lxns_token"]
+                await self.save()
+
 
 class GroupConfigStore:
     """群级配置存储（猜歌开关、别名推送开关、禁用群列表等）。"""

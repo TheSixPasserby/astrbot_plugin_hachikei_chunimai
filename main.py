@@ -417,6 +417,59 @@ class MaiChuPlugin(Star):
         await self.user_store.set_lxns_token(user_key, access_token)
         yield self._message("✅ 落雪查分器绑定成功！现在可以直接使用 minfo、b50 等命令查分。")
 
+    @command("unbindlxns", alias={"解绑落雪"})
+    async def _unbind_lxns(self, event: AstrMessageEvent):
+        """解绑落雪查分器。"""
+        user_key = self._user_key(event)
+        token = self.user_store.get_lxns_token(user_key)
+        if not token:
+            yield self._message("你还没有绑定落雪查分器。")
+            return
+        await self.user_store.remove_lxns_token(user_key)
+        yield self._message("✅ 已解绑落雪查分器。")
+
+    @command("account", alias={"绑定账号", "账号状态", "我的绑定"})
+    async def _account_status(self, event: AstrMessageEvent):
+        """查看当前账号绑定状态。"""
+        user_key = self._user_key(event)
+
+        # QQ 绑定
+        qq = self.user_store.get_qq(user_key)
+        qq_status = f"✅ {qq}" if qq else "❌ 未绑定"
+
+        # 落雪 OAuth
+        lxns_token = self.user_store.get_lxns_token(user_key)
+        lxns_status = "✅ 已授权" if lxns_token else "❌ 未绑定"
+
+        # 全局落雪配置（管理员预设）
+        global_lxns = self.config.get("lxns_user_token", "")
+        if global_lxns and not lxns_token:
+            lxns_status = "⚙️ 使用全局配置"
+
+        # 水鱼（DivingFish）
+        divingfish_token = self.config.get("mai_divingfish_token", "")
+        divingfish_status = "✅ 已配置" if divingfish_token else "❌ 未配置"
+
+        lines = [
+            "📋 **账号绑定状态**\n",
+            f"| 项目 | 状态 |",
+            f"|------|------|",
+            f"| QQ 号 | {qq_status} |",
+            f"| 落雪查分器 | {lxns_status} |",
+            f"| 水鱼查分器 | {divingfish_status} |",
+            "",
+            "---",
+            "**绑定指引：**",
+            "• `bindqq <QQ号>` — 绑定 QQ",
+            "• `绑定落雪` — 授权落雪查分器（推荐）",
+            "• `解绑落雪` — 取消落雪授权",
+        ]
+        if not qq and not lxns_token:
+            lines.append("")
+            lines.append("⚠️ 你还没有绑定任何查分方式，请先绑定 QQ 或落雪。")
+
+        yield self._message("\n".join(lines))
+
     def _get_qq(self, event: AstrMessageEvent) -> int | None:
         """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
         # 1. 尝试从 @提及 获取
