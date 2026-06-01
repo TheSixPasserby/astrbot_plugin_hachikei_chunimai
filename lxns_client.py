@@ -78,18 +78,23 @@ class LxnsAPI:
         """用授权码换取 access_token。返回 token 字符串。"""
         session = await self._get_session()
         url = f"{self.BASE_URL}/oauth/token"
-        async with session.post(url, json={
+        payload = {
             "grant_type": "authorization_code",
             "code": code,
             "client_id": client_id,
             "client_secret": client_secret,
             "redirect_uri": redirect_uri,
-        }) as res:
+        }
+        async with session.post(url, json=payload) as res:
             data = await res.json()
+            logger.info(f"OAuth 响应: {data}")
             if not data.get("success"):
                 msg = data.get("message", "未知错误")
                 raise ServerError(f"OAuth 交换失败: {msg}")
-            return data["data"]["access_token"]
+            token = data["data"].get("access_token", data["data"].get("token", ""))
+            if not token:
+                raise ServerError(f"OAuth 响应中无 token: {data}")
+            return token
 
     # ================================================================
     # maimai DX（开发者 API）
