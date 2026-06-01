@@ -327,57 +327,25 @@ class MaiChuPlugin(Star):
         return self.group_store.get_prober(game, gid) or "auto"
 
     async def _resolve_mai_prober(self, event: AstrMessageEvent) -> str:
-        """智能解析舞萌查分器：auto 模式下根据绑定状态和数据新鲜度决定。"""
+        """智能解析舞萌查分器：auto 模式下根据绑定状态决定（无 API 调用，秒判）。"""
         prober = self._get_prober(event, "maimai")
         if prober != "auto":
             return prober
 
         user_token = self._get_lxns_token(event)
         qq = self._get_qq(event)
+        has_divingfish = bool(self.config.get("mai_divingfish_token", ""))
+        has_lxns = bool(user_token) or bool(self.config.get("lxns_dev_key", ""))
 
-        # 有 Lxns token，无 QQ → 直接用落雪
-        if user_token and not qq:
-            return "lxns"
-
-        # 有 QQ → 两边都查，看哪个有数据
-        if qq:
-            has_divingfish = bool(self.config.get("mai_divingfish_token", ""))
-            has_lxns = bool(user_token) or bool(self.config.get("lxns_dev_key", ""))
-
-            if has_divingfish and has_lxns:
-                # 并发查询两边，取有数据的
-                df_ok = False
-                lxns_ok = False
-                try:
-                    await self.api.query_user_b50(qqid=qq)
-                    df_ok = True
-                except Exception:
-                    pass
-                saved = self.lxns._user_token
-                if user_token:
-                    self.lxns._user_token = user_token
-                try:
-                    await self.lxns.mai_player_by_qq(qq)
-                    lxns_ok = True
-                except Exception:
-                    pass
-                finally:
-                    self.lxns._user_token = saved
-
-                if lxns_ok and not df_ok:
-                    return "lxns"
-                if df_ok:
-                    return "divingfish"
-            elif has_lxns:
-                return "lxns"
-            elif has_divingfish:
-                return "divingfish"
-
-        # 有 token 但也有 QQ，或只有 token → 落雪
+        # 优先级：Lxns 用户 token > 水鱼 > Lxns 开发者密钥
         if user_token:
             return "lxns"
-
-        # 都没有 → 默认水鱼
+        if qq and has_divingfish:
+            return "divingfish"
+        if has_lxns:
+            return "lxns"
+        if has_divingfish:
+            return "divingfish"
         return "divingfish"
 
     # ================================================================
