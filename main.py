@@ -290,26 +290,26 @@ class MaiChuPlugin(Star):
 
     @command("switchprober", alias={"切换查分器", "更改查分器"})
     async def _switch_prober(self, event: AstrMessageEvent):
-        """切换舞萌查分器。用法：更改查分器 自动/水鱼/落雪"""
+        """切换舞萌查分器。用法：更改查分器 水鱼/落雪"""
         full_text = event.get_message_str().strip()
         args = full_text.split(maxsplit=1)
         param = args[1].strip() if len(args) > 1 else ""
 
         prober_input = None
         for t in [full_text, param]:
-            m = re.match(r"^(?:切换|更改)?(?:舞萌)?(?:查分器)?\s*(自动|水鱼|落雪|auto|divingfish|lxns)$", t, re.I)
+            m = re.match(r"^(?:切换|更改)?(?:舞萌)?(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", t, re.I)
             if m:
                 prober_input = m.group(1).lower()
                 break
 
         if not prober_input:
-            yield self._message("用法：更改查分器 自动/水鱼/落雪\n自动模式会根据绑定状态智能选择查分器。")
+            yield self._message("用法：更改查分器 水鱼/落雪")
             return
 
-        prober_map = {"自动": "auto", "auto": "auto", "水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
+        prober_map = {"水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
         prober = prober_map.get(prober_input)
         if not prober:
-            yield self._message("无效查分器。可选：自动、水鱼、落雪")
+            yield self._message("无效查分器。可选：水鱼、落雪")
             return
 
         group_id = self._group_id(event)
@@ -318,35 +318,13 @@ class MaiChuPlugin(Star):
             return
 
         await self.group_store.set_prober("maimai", prober, group_id)
-        prober_label = {"auto": "自动", "divingfish": "水鱼", "lxns": "落雪"}[prober]
+        prober_label = "水鱼" if prober == "divingfish" else "落雪"
         yield self._message(f"✅ 舞萌查分器已切换为 {prober_label}。")
 
     def _get_prober(self, event: AstrMessageEvent, game: str) -> str:
-        """获取当前群指定游戏的查分器。默认 auto。"""
+        """获取当前群指定游戏的查分器。"""
         gid = self._group_id(event)
-        return self.group_store.get_prober(game, gid) or "auto"
-
-    async def _resolve_mai_prober(self, event: AstrMessageEvent) -> str:
-        """智能解析舞萌查分器：auto 模式下根据绑定状态决定（无 API 调用，秒判）。"""
-        prober = self._get_prober(event, "maimai")
-        if prober != "auto":
-            return prober
-
-        user_token = self._get_lxns_token(event)
-        qq = self._get_qq(event)
-        has_divingfish = bool(self.config.get("mai_divingfish_token", ""))
-        has_lxns = bool(user_token) or bool(self.config.get("lxns_dev_key", ""))
-
-        # 优先级：Lxns 用户 token > 水鱼 > Lxns 开发者密钥
-        if user_token:
-            return "lxns"
-        if qq and has_divingfish:
-            return "divingfish"
-        if has_lxns:
-            return "lxns"
-        if has_divingfish:
-            return "divingfish"
-        return "divingfish"
+        return self.group_store.get_prober(game, gid)
 
     # ================================================================
     # 绑定 QQ
@@ -431,7 +409,16 @@ class MaiChuPlugin(Star):
 
         del self._pending_oauth[user_key]
         await self.user_store.set_lxns_token(user_key, access_token)
-        yield self._message("✅ 落雪查分器绑定成功！现在可以直接使用 minfo、b50 等命令查分。")
+
+        # 自动切换舞萌查分器为落雪
+        gid = self._group_id(event)
+        if gid:
+            await self.group_store.set_prober("maimai", "lxns", gid)
+
+        yield self._message(
+            "✅ 落雪查分器绑定成功！已自动切换舞萌查分器为落雪。\n"
+            "如需使用水鱼查分器，请发送：更改查分器 水鱼"
+        )
 
     @command("unbindlxns", alias={"解绑落雪"})
     async def _unbind_lxns(self, event: AstrMessageEvent):
@@ -638,7 +625,7 @@ class MaiChuPlugin(Star):
             if game == "chunithm":
                 async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                     yield r
-            elif await self._resolve_mai_prober(event) == "lxns":
+            elif self._get_prober(event, "maimai") == "lxns":
                 async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
@@ -661,7 +648,7 @@ class MaiChuPlugin(Star):
             if game == "chunithm":
                 async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                     yield r
-            elif await self._resolve_mai_prober(event) == "lxns":
+            elif self._get_prober(event, "maimai") == "lxns":
                 async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
