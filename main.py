@@ -14,8 +14,8 @@ from astrbot.api.star import Context, Star, StarTools
 from .api_client import MaimaiAPI
 from .lxns_client import LxnsAPI
 from .chu_data import ChuDataManager
-from .command.chunithm import chu_b30_handler, chu_mai_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
-from .command.lxns_mai import lxns_mai_mai_b50_handler, lxns_mai_mai_minfo_handler
+from .command.chunithm import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
+from .command.mai_score import lxns_mai_b50_handler, lxns_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
     alias_global_push_handler, alias_local_apply_handler, alias_push_handler,
@@ -488,7 +488,7 @@ class MaiChuPlugin(Star):
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         elif self._get_prober(event, "maimai") == "lxns":
-            async for r in lxns_mai_mai_b50_handler(event, self.lxns, qq=qq):
+            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
                 yield r
         else:
             async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq):
@@ -501,10 +501,10 @@ class MaiChuPlugin(Star):
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
         if game == "chunithm":
-            async for r in chu_mai_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         elif self._get_prober(event, "maimai") == "lxns":
-            async for r in lxns_mai_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
+            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                 yield r
         else:
             async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq):
