@@ -22,6 +22,7 @@ def build_help_text(current_game: str = "maimai", group_game: str | None = None)
 
 > 首次使用请发送 **`绑定账号`** 查看绑定指引。
 > 带 ⭐ 的命令支持查询游戏路由：前缀 `mai`/`chu` 可强制指定游戏。
+> 发送街机二维码（SGWCMAID...）可自动同步成绩到查分器。
 
 ---
 

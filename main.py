@@ -78,6 +78,7 @@ class MaiChuPlugin(Star):
         self.music_data = MusicDataManager(self.api, data_dir)
         self.chu_data = ChuDataManager(self.lxns, data_dir)
         self.alias_push = AliasPushService(self.api, self.config.get("alias_push_uuid", ""))
+        self._qr_sync = None  # QRSyncService，延迟初始化（需要 maimai-py）
 
         # OAuth 绑定等待状态: {user_key: expire_timestamp}
         self._pending_oauth: dict[str, float] = {}
@@ -126,6 +127,15 @@ class MaiChuPlugin(Star):
         # 启动别名推送
         if self.config.get("enable_alias_push") and self.config.get("alias_push_uuid"):
             await self.alias_push.start(self.context, self.group_store)
+
+        # 初始化二维码同步服务
+        try:
+            from .qr_sync import QRSyncService
+            proxy = self.config.get("http_proxy", "")
+            self._qr_sync = QRSyncService(timeout=self.timeout, proxy=proxy)
+            logger.info("QR 同步服务已初始化（maimai-py）")
+        except Exception as e:
+            logger.warning(f"QR 同步服务初始化失败（maimai-py 未安装？）: {e}")
 
         # 验证已绑定的落雪 token
         await self._validate_lxns_tokens()
@@ -412,6 +422,35 @@ class MaiChuPlugin(Star):
         await self.user_store.remove_lxns_token(user_key)
         yield self._message("✅ 已解绑落雪查分器。")
 
+    @command("binddf", alias={"绑定水鱼"})
+    async def _bind_divingfish(self, event: AstrMessageEvent):
+        """绑定水鱼 Import-Token。"""
+        args = event.get_message_str().strip().split(maxsplit=1)
+        if len(args) < 2:
+            yield self._message(
+                "用法：绑定水鱼 <Import-Token>\n"
+                "Token 可在 diving-fish.com 个人设置中获取。"
+            )
+            return
+        token = args[1].strip()
+        if len(token) < 50:
+            yield self._message("Token 格式不正确，请检查后重试。")
+            return
+        user_key = self._user_key(event)
+        await self.user_store.set_divingfish_token(user_key, token)
+        yield self._message("✅ 水鱼 Import-Token 绑定成功！发送二维码即可同步成绩。")
+
+    @command("unbinddf", alias={"解绑水鱼"})
+    async def _unbind_divingfish(self, event: AstrMessageEvent):
+        """解绑水鱼 Import-Token。"""
+        user_key = self._user_key(event)
+        token = self.user_store.get_divingfish_token(user_key)
+        if not token:
+            yield self._message("你还没有绑定水鱼查分器。")
+            return
+        await self.user_store.remove_divingfish_token(user_key)
+        yield self._message("✅ 已解绑水鱼查分器。")
+
     @command("account", alias={"绑定账号", "账号状态", "我的绑定"})
     async def _account_status(self, event: AstrMessageEvent):
         """查看当前账号绑定状态。"""
@@ -432,8 +471,8 @@ class MaiChuPlugin(Star):
             lxns_status = "❌ 未绑定"
 
         # 水鱼（DivingFish）
-        divingfish_token = self.config.get("mai_divingfish_token", "")
-        divingfish_status = "✅ 已配置" if divingfish_token else "❌ 未配置"
+        df_token = self.user_store.get_divingfish_token(user_key)
+        divingfish_status = "✅ 已绑定" if df_token else "❌ 未绑定"
 
         lines = [
             "📋 **账号绑定状态**\n",
@@ -454,7 +493,8 @@ class MaiChuPlugin(Star):
             "**绑定指引：**",
             "• `绑定QQ <QQ号>` — 绑定 QQ",
             "• `绑定落雪` — 授权落雪查分器（推荐）",
-            "• `解绑落雪` — 取消落雪授权",
+            "• `绑定水鱼 <Token>` — 绑定水鱼 Import-Token",
+            "• `解绑落雪` / `解绑水鱼` — 取消授权",
         ])
         if not qq and not lxns_token:
             lines.append("")
@@ -992,6 +1032,62 @@ class MaiChuPlugin(Star):
             yield r
 
     # ================================================================
+    # SGWCMAID 二维码同步
+    # ================================================================
+
+    async def _handle_sgid(self, event: AstrMessageEvent, text: str) -> None:
+        """处理 SGWCMAID 二维码同步。"""
+        from .qr_sync import extract_sgid
+
+        sgid = extract_sgid(text)
+        if not sgid:
+            return
+
+        # 验证 SGID
+        err = self._qr_sync.validate_sgid(sgid)
+        if err:
+            yield self._message(f"❌ {err}")
+            return
+
+        user_key = self._user_key(event)
+        lxns_token = self._get_lxns_token(event)
+        df_token = self.user_store.get_divingfish_token(user_key)
+
+        # 确定同步目标
+        if lxns_token:
+            target = "落雪"
+        elif df_token:
+            target = "水鱼"
+        else:
+            yield self._message(
+                "⚠️ 未绑定查分器，请先发送「绑定账号」查看绑定指引。"
+            )
+            return
+
+        yield self._message(f"🎮 正在同步成绩到{target}，请稍候...")
+
+        try:
+            if lxns_token:
+                result = await self._qr_sync.sync_to_lxns(sgid, lxns_token)
+            else:
+                result = await self._qr_sync.sync_to_divingfish(sgid, df_token)
+
+            lines = [
+                f"✅ 同步成功！",
+                f"  玩家: {result.player_name or '未知'}",
+                f"  Rating: {result.rating}",
+                f"  同步曲数: {result.score_count}",
+            ]
+            if result.warning:
+                lines.append(f"  ⚠️ {result.warning}")
+            yield self._message("\n".join(lines))
+
+        except Exception as e:
+            err_msg = self._qr_sync.describe_error(e)
+            logger.exception("SGWCMAID 同步失败")
+            yield self._message(f"❌ {err_msg}")
+
+    # ================================================================
     # 正则匹配（不需要唤醒前缀）
     # ================================================================
 
@@ -1008,6 +1104,13 @@ class MaiChuPlugin(Star):
             return
 
         text = event.get_message_str().strip()
+
+        # SGWCMAID 二维码同步（优先检测，不区分游戏模式）
+        if self._qr_sync and "SGWCMAID" in text.upper():
+            async for r in self._handle_sgid(event, text):
+                yield r
+            return
+
         game = self._resolve_game(event)
 
         # --- 以下仅 maimai 模式 ---

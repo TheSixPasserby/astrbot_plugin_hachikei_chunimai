@@ -167,6 +167,28 @@ class UserStore:
                 del d["lxns_token"]
                 await self.save()
 
+    async def set_divingfish_token(self, user_key: str, token: str) -> None:
+        """保存用户的水鱼 Import-Token。"""
+        async with self._lock:
+            rec = self._data.setdefault(user_key, {})
+            rec["divingfish_token"] = token
+            await self.save()
+
+    def get_divingfish_token(self, user_key: str) -> str:
+        """获取用户的水鱼 Import-Token。"""
+        d = self._data.get(user_key)
+        if d:
+            return d.get("divingfish_token", "") or ""
+        return ""
+
+    async def remove_divingfish_token(self, user_key: str) -> None:
+        """删除用户的水鱼 Import-Token。"""
+        async with self._lock:
+            d = self._data.get(user_key)
+            if d and "divingfish_token" in d:
+                del d["divingfish_token"]
+                await self.save()
+
 
 class GroupConfigStore:
     """群级配置存储（猜歌开关、别名推送开关、禁用群列表等）。"""
