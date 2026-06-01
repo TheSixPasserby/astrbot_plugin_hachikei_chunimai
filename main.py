@@ -420,42 +420,62 @@ class MaimaiPlugin(Star):
             yield self._message(f"更新失败：{e}")
 
     # ================================================================
-    # maimai 专属命令 — 带 mai 前缀直接执行，不检测游戏模式
+    # 统一查分路由
     # ================================================================
 
-    @command("maib50")
-    async def _mai_b50(self, event: AstrMessageEvent):
-        if self._is_group_disabled(event):
-            return
+    async def _route_b50(self, event: AstrMessageEvent, game: str) -> None:
+        """统一 B50/B30 路由。"""
         qq = self._require_qq(event)
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
-        prober = self._get_prober(event, "maimai")
-        yield self._message(f"🎮 正在为 [maimai DX] 生成 {self._table_name('maimai')}，请稍候...")
-        if prober == "lxns":
+        label = GAME_LABELS.get(game, game)
+        yield self._message(f"🎮 正在为 [{label}] 生成 {self._table_name(game)}，请稍候...")
+        if game == "chunithm":
+            async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
+                yield r
+        elif self._get_prober(event, "maimai") == "lxns":
             async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
                 yield r
         else:
             async for r in b50_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
-    @command("maiminfo")
-    async def _mai_minfo(self, event: AstrMessageEvent):
-        if self._is_group_disabled(event):
-            return
+    async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
+        """统一 minfo 路由。"""
         qq = self._require_qq(event)
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
-        prober = self._get_prober(event, "maimai")
-        yield self._message("🎮 正在为 [maimai DX] 查询歌曲成绩，请稍候...")
-        if prober == "lxns":
+        label = GAME_LABELS.get(game, game)
+        yield self._message(f"🎮 正在为 [{label}] 查询歌曲成绩，请稍候...")
+        if game == "chunithm":
+            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+                yield r
+        elif self._get_prober(event, "maimai") == "lxns":
             async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq):
                 yield r
         else:
             async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
                 yield r
+
+    # ================================================================
+    # maimai 专属命令
+    # ================================================================
+
+    @command("maib50")
+    async def _mai_b50(self, event: AstrMessageEvent):
+        if self._is_group_disabled(event):
+            return
+        async for r in self._route_b50(event, "maimai"):
+            yield r
+
+    @command("maiminfo")
+    async def _mai_minfo(self, event: AstrMessageEvent):
+        if self._is_group_disabled(event):
+            return
+        async for r in self._route_minfo(event, "maimai"):
+            yield r
 
     @command("maiginfo")
     async def _mai_ginfo(self, event: AstrMessageEvent):
@@ -473,31 +493,21 @@ class MaimaiPlugin(Star):
             yield r
 
     # ================================================================
-    # CHUNITHM 专属命令 — 带 chu 前缀直接执行，不检测游戏模式
+    # CHUNITHM 专属命令
     # ================================================================
 
     @command("b30", alias={"chub30"})
     async def _chu_b30(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._require_qq(event)
-        if qq is None:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
-            return
-        yield self._message(f"🎮 正在为 [CHUNITHM] 生成 {self._table_name('chunithm')}，请稍候...")
-        async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
+        async for r in self._route_b50(event, "chunithm"):
             yield r
 
     @command("chuminfo")
     async def _chu_minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._require_qq(event)
-        if qq is None:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
-            return
-        yield self._message("🎮 正在为 [CHUNITHM] 查询歌曲成绩，请稍候...")
-        async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+        async for r in self._route_minfo(event, "chunithm"):
             yield r
 
     @command("chusearch")
@@ -522,44 +532,17 @@ class MaimaiPlugin(Star):
     async def _b50(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._require_qq(event)
-        if qq is None:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
-            return
         game = self._resolve_game(event)
-        prober = self._get_prober(event, game)
-        label = GAME_LABELS.get(game, game)
-        table_name = "B30" if game == "chunithm" else "B50"
-        yield self._message(f"🎮 正在为 [{label}] 生成 {table_name}，请稍候...")
-        if game == "chunithm":
-            async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
-                yield r
-        elif prober == "lxns":
-            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
-                yield r
-        else:
-            async for r in b50_handler(event, self.api, self.music_data, qq=qq):
-                yield r
+        async for r in self._route_b50(event, game):
+            yield r
 
     @command("minfo")
     async def _minfo(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._require_qq(event)
-        if qq is None:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
-            return
         game = self._resolve_game(event)
-        prober = self._get_prober(event, game)
-        if game == "chunithm":
-            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
-                yield r
-        elif prober == "lxns":
-            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq):
-                yield r
-        else:
-            async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
-                yield r
+        async for r in self._route_minfo(event, game):
+            yield r
 
     @command("ginfo")
     async def _ginfo(self, event: AstrMessageEvent):
@@ -569,7 +552,8 @@ class MaimaiPlugin(Star):
         if game == "chunithm":
             yield self._message("CHUNITHM 暂不支持 ginfo。")
         else:
-            async for r in ginfo_handler(event, self.api, self.music_data):
+            qq = self._get_qq(event)
+            async for r in ginfo_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
     @command("分数线")
