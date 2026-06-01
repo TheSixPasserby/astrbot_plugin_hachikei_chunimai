@@ -337,10 +337,14 @@ class MusicDataManager:
             try:
                 data = await self._lxns.mai_alias_list()
                 for entry in data.get("aliases", []):
-                    sid = str(entry.get("song_id", ""))
-                    raw_alias.append({"SongID": sid, "Name": "", "Alias": entry.get("aliases", [])})
+                    lxns_id = entry.get("song_id", 0)
+                    # Lxns 4位 ID → DivingFish 5位 ID
+                    df_id = lxns_id + 10000 if lxns_id < 10000 else lxns_id
+                    music = self.music_list.by_id(str(df_id))
+                    name = music.title if music else ""
+                    raw_alias.append({"SongID": df_id, "Name": name, "Alias": entry.get("aliases", [])})
                 await self._write_json("music_alias.json", raw_alias)
-                logger.info("从落雪获取舞萌别名成功")
+                logger.info(f"从落雪获取舞萌别名成功: {len(raw_alias)} 条")
             except Exception as e:
                 logger.warning(f"从落雪获取舞萌别名失败: {e}，尝试本地缓存")
                 raw_alias = await self._read_json("music_alias.json") or []
