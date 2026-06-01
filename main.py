@@ -431,13 +431,18 @@ class MaimaiPlugin(Star):
             return
         label = GAME_LABELS.get(game, game)
         table = self._table_name(game)
-        # 发送"正在生成"提示，拿到消息 ID 用于后续撤回
+
+        # 发送"正在生成"提示
         gen_msg_id = None
         try:
-            msg_chain = event.plain_result(f"🎮 正在为 [{label}] 生成 {table}，请稍候...")
-            result = await event.send(msg_chain)
-            if hasattr(result, "id"):
-                gen_msg_id = result.id
+            await event.send(event.plain_result(f"🎮 正在为 [{label}] 生成 {table}，请稍候..."))
+            # 从 adapter 缓存中获取刚发送消息的 ID
+            try:
+                adapter = self.context.get_platform_inst(event.get_platform_id())
+                if adapter:
+                    gen_msg_id = adapter._session_last_message_id.get(event.session_id)
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -455,9 +460,11 @@ class MaimaiPlugin(Star):
         # 撤回"正在生成"提示
         if gen_msg_id:
             try:
-                platform = event.get_platform_name()
-                if "qq" in platform.lower() or "official" in platform.lower():
-                    await event.bot.delete_message(gen_msg_id)
+                adapter = self.context.get_platform_inst(event.get_platform_id())
+                if adapter and hasattr(adapter, "client"):
+                    group_id = self._group_id(event)
+                    if group_id:
+                        await adapter.client.delete_message(group_openid=group_id, message_id=gen_msg_id)
             except Exception:
                 pass
 
