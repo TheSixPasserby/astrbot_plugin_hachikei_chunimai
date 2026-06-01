@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 HELP_TEXT = """\
 # 🎵 maimai DX & CHUNITHM 综合助手
 
-> 首次使用请先 **`bindqq <QQ号>`** 绑定 QQ，否则查分命令无法找到你。
+> 首次使用请先 **`绑定QQ <QQ号>`** 绑定 QQ，否则查分命令无法找到你。
 > 带 ⭐ 的命令支持游戏模式路由：前缀 `mai`/`chu` 可强制指定游戏。
 
 ---
@@ -20,10 +20,10 @@ HELP_TEXT = """\
 | 命令 | 说明 |
 |------|------|
 | `绑定账号` | 查看绑定状态与引导 |
-| `bindqq <QQ>` | 绑定 QQ 号 |
+| `绑定QQ <QQ号>` | 绑定 QQ 号 |
 | `绑定落雪` | 落雪查分器授权绑定 |
 | `解绑落雪` | 取消落雪授权 |
-| `game maimai/chunithm` | 切换个人游戏模式 |
+| `更改游戏 舞萌/中二` | 切换查询游戏 |
 | `game reset` | 清除个人设置，跟随群规则 |
 | `game status` | 查看当前游戏模式 |
 | `game group maimai/chunithm` | *(管理员)* 设置群默认游戏 |

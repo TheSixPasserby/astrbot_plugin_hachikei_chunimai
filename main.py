@@ -181,7 +181,7 @@ class MaiChuPlugin(Star):
         return bool(gid) and self.group_store.is_group_disabled(gid)
 
     def _resolve_game(self, event: AstrMessageEvent) -> str:
-        """解析当前用户的游戏模式。优先级：个人设置 > 群默认 > maimai"""
+        """解析当前用户的查询游戏。优先级：个人设置 > 群默认 > maimai"""
         user_key = self._user_key(event)
         personal = self.user_store.get_game_mode(user_key)
         if personal:
@@ -195,17 +195,13 @@ class MaiChuPlugin(Star):
     # 游戏切换
     # ================================================================
 
-    @command("game", alias={"切换游戏", "游戏模式"})
+    # 舞萌/中二 → 内部 key
+    _GAME_ALIASES = {"舞萌": "maimai", "maimai": "maimai", "中二": "chunithm", "chunithm": "chunithm"}
+
+    @command("更改游戏", alias={"game", "切换游戏"})
     async def _switch_game(self, event: AstrMessageEvent):
-        """切换游戏模式。用法：
-        game maimai       — 设置个人游戏模式
-        game chunithm     — 设置个人游戏模式
-        game reset        — 清除个人设置，跟随群规则
-        game group maimai — (管理员) 设置群默认游戏
-        game status       — 查看当前游戏模式
-        """
+        """切换查询游戏。"""
         args = event.get_message_str().strip().split()
-        # game / 切换游戏 / 游戏模式
         # args[0] 是命令名
 
         if len(args) < 2:
@@ -216,27 +212,25 @@ class MaiChuPlugin(Star):
             gid = self._group_id(event)
             group_default = self.group_store.get_group_game_mode(gid) if gid else "maimai"
 
-            lines = [f"🎮 当前游戏: {label}"]
+            lines = [f"🎮 当前查询游戏: {label}"]
             if personal:
-                lines.append(f"  来源: 个人设置 ({personal})")
+                lines.append(f"  来源: 个人设置")
             elif gid:
-                lines.append(f"  来源: 群默认 ({group_default})")
-            else:
-                lines.append(f"  来源: 默认 (maimai)")
+                lines.append(f"  来源: 群默认")
             lines.append("")
             lines.append("用法:")
-            lines.append("  game maimai/chunithm — 设置个人游戏")
-            lines.append("  game reset — 清除个人设置")
-            lines.append("  game status — 查看详情")
+            lines.append("  更改游戏 舞萌/中二 — 设置个人查询游戏")
+            lines.append("  更改游戏 重置 — 清除个人设置")
+            lines.append("  更改游戏 状态 — 查看详情")
             if self._is_admin(event):
-                lines.append("  game group maimai/chunithm — 设置群默认")
+                lines.append("  更改游戏 群 舞萌/中二 — 设置群默认")
             yield self._message("\n".join(lines))
             return
 
         sub = args[1].lower()
 
-        # game status
-        if sub == "status":
+        # 状态
+        if sub in ("status", "状态"):
             current = self._resolve_game(event)
             label = GAME_LABELS.get(current, current)
             user_key = self._user_key(event)
@@ -244,32 +238,32 @@ class MaiChuPlugin(Star):
             gid = self._group_id(event)
             group_default = self.group_store.get_group_game_mode(gid) if gid else "maimai"
 
-            lines = [f"🎮 游戏模式详情"]
+            lines = [f"🎮 查询游戏详情"]
             lines.append(f"  生效: {label}")
-            lines.append(f"  个人: {personal or '(未设置)'}")
+            lines.append(f"  个人: {GAME_LABELS.get(personal, personal) or '(未设置)'}")
             if gid:
-                lines.append(f"  群默认: {group_default}")
+                lines.append(f"  群默认: {GAME_LABELS.get(group_default, group_default)}")
             yield self._message("\n".join(lines))
             return
 
-        # game reset
-        if sub == "reset":
+        # 重置
+        if sub in ("reset", "重置"):
             user_key = self._user_key(event)
             await self.user_store.set_game_mode(user_key, "")
-            yield self._message("✅ 已清除个人游戏设置，将跟随群规则。")
+            yield self._message("✅ 已清除个人查询游戏设置，将跟随群规则。")
             return
 
-        # game group <game> — 管理员设置群默认
-        if sub == "group":
+        # 群默认
+        if sub in ("group", "群"):
             if not self._is_admin(event):
                 yield self._message("需要管理员权限。")
                 return
             if len(args) < 3:
-                yield self._message("用法: game group maimai/chunithm")
+                yield self._message("用法: 更改游戏 群 舞萌/中二")
                 return
-            game = args[2].lower()
-            if game not in VALID_GAMES:
-                yield self._message(f"无效游戏。可选: {', '.join(VALID_GAMES)}")
+            game = self._GAME_ALIASES.get(args[2].lower())
+            if not game:
+                yield self._message(f"无效游戏。可选: 舞萌、中二")
                 return
             gid = self._group_id(event)
             if not gid:
@@ -277,18 +271,18 @@ class MaiChuPlugin(Star):
                 return
             await self.group_store.set_group_game_mode(gid, game)
             label = GAME_LABELS.get(game, game)
-            yield self._message(f"✅ 群默认游戏已设为 {label}。")
+            yield self._message(f"✅ 群默认查询游戏已设为 {label}。")
             return
 
-        # game maimai/chunithm — 个人设置
-        game = sub
-        if game not in VALID_GAMES:
-            yield self._message(f"无效游戏。可选: {', '.join(VALID_GAMES)}")
+        # 个人设置
+        game = self._GAME_ALIASES.get(sub)
+        if not game:
+            yield self._message(f"无效游戏。可选: 舞萌、中二")
             return
         user_key = self._user_key(event)
         await self.user_store.set_game_mode(user_key, game)
         label = GAME_LABELS.get(game, game)
-        yield self._message(f"✅ 个人游戏已设为 {label}。")
+        yield self._message(f"✅ 个人查询游戏已设为 {label}。")
 
     # ================================================================
     # 查分器切换
@@ -336,11 +330,11 @@ class MaiChuPlugin(Star):
     # 绑定 QQ
     # ================================================================
 
-    @command("bindqq", alias={"绑定qq", "绑定QQ"})
+    @command("绑定QQ", alias={"绑定QQ"})
     async def _bind_qq(self, event: AstrMessageEvent):
         args = event.get_message_str().strip().split()
         if len(args) < 2 or not args[1].isdigit():
-            yield self._message("用法：bindqq <QQ号>\n绑定后查分命令将使用该 QQ 号查询。")
+            yield self._message("用法：绑定QQ <QQ号>\n绑定后查分命令将使用该 QQ 号查询。")
             return
         qq = args[1].strip()
         user_key = self._user_key(event)
@@ -455,7 +449,7 @@ class MaiChuPlugin(Star):
             "",
             "---",
             "**绑定指引：**",
-            "• `bindqq <QQ号>` — 绑定 QQ",
+            "• `绑定QQ <QQ号>` — 绑定 QQ",
             "• `绑定落雪` — 授权落雪查分器（推荐）",
             "• `解绑落雪` — 取消落雪授权",
         ]
@@ -617,7 +611,7 @@ class MaiChuPlugin(Star):
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
         if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `绑定落雪` 绑定。")
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
             return
         try:
             if game == "chunithm":
@@ -640,7 +634,7 @@ class MaiChuPlugin(Star):
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
         if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `绑定落雪` 绑定。")
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
             return
         try:
             if game == "chunithm":
@@ -806,7 +800,7 @@ class MaiChuPlugin(Star):
             return
         qq = self._require_qq(event)
         if qq is None:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 绑定。")
             return
         game = self._resolve_game(event)
         if game == "maimai":

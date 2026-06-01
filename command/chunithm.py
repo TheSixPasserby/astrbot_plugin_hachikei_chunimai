@@ -80,7 +80,7 @@ async def chu_b30_handler(
 
         if not player or not friend_code:
             yield event.plain_result(
-                "未找到玩家。请先执行 `bindqq <QQ号>` 绑定，或使用 `绑定落雪` 授权。"
+                "未找到玩家。请先执行 `绑定QQ <QQ号>` 绑定，或使用 `绑定落雪` 授权。"
             )
             return
 
@@ -183,7 +183,7 @@ async def chu_minfo_handler(
             player = await lxns.chu_player_by_qq(qq)
             fc = player.get("friend_code")
         if not fc:
-            yield event.plain_result("未找到玩家。请先执行 `bindqq <QQ号>` 绑定。")
+            yield event.plain_result("未找到玩家。请先执行 `绑定QQ <QQ号>` 绑定。")
             return
 
         # 查找歌曲
