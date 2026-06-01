@@ -74,6 +74,17 @@ class LxnsAPI:
     # OAuth2
     # ================================================================
 
+    async def oauth_user_profile(self) -> dict:
+        """用 OAuth token 获取用户 profile（含 friend_code）。"""
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/user/profile"
+        async with session.get(url, headers=self._user_headers()) as res:
+            data = await res.json()
+            if not data.get("success"):
+                msg = data.get("message", "未知错误")
+                raise ServerError(f"获取用户 profile 失败: {msg}")
+            return data.get("data", data)
+
     async def oauth_exchange(self, code: str, client_id: str, client_secret: str, redirect_uri: str) -> str:
         """用授权码换取 access_token。返回 token 字符串。"""
         session = await self._get_session()

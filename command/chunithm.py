@@ -58,19 +58,17 @@ async def chu_b30_handler(
             except Exception:
                 pass
 
-        # 获取玩家信息：优先个人 API，其次开发者 API
+        # 获取玩家信息：OAuth profile > QQ 开发者 API > 好友码
         player = None
         friend_code = None
-        use_personal = False
 
         if lxns._user_token:
-            # 有个人密钥，直接用个人 API
             try:
-                player = await lxns.chu_user_player()
-                friend_code = player.get("friend_code")
-                use_personal = True
+                profile = await lxns.oauth_user_profile()
+                friend_code = profile.get("friend_code") or profile.get("chunithm", {}).get("friend_code")
+                player = {"name": profile.get("name", "未知"), "rating": profile.get("chunithm", {}).get("rating", 0), "friend_code": friend_code}
             except Exception as e:
-                logger.warning(f"落雪 CHUNITHM 个人 API 查询失败: {e}")
+                logger.warning(f"落雪 OAuth profile 查询失败: {e}")
 
         if not player and qq:
             player = await lxns.chu_player_by_qq(qq)
@@ -85,11 +83,8 @@ async def chu_b30_handler(
             )
             return
 
-        # 获取 B30：优先个人 API
-        if use_personal:
-            bests_data = await lxns._user_get("/user/chunithm/player/bests")
-        else:
-            bests_data = await lxns.chu_bests(friend_code)
+        # 获取 B30（开发者 API）
+        bests_data = await lxns.chu_bests(friend_code)
         bests = bests_data.get("bests", [])
         selections = bests_data.get("selections", [])
         new_bests = bests_data.get("new_bests", [])
@@ -170,16 +165,14 @@ async def chu_minfo_handler(
             except Exception:
                 pass
 
-        # 获取玩家信息：优先个人 API
+        # 获取玩家信息：OAuth profile > QQ 开发者 API
         fc = None
-        use_personal = False
         if lxns._user_token:
             try:
-                player = await lxns.chu_user_player()
-                fc = player.get("friend_code")
-                use_personal = True
+                profile = await lxns.oauth_user_profile()
+                fc = profile.get("friend_code") or profile.get("chunithm", {}).get("friend_code")
             except Exception as e:
-                logger.warning(f"落雪 CHUNITHM 个人 API 查询失败: {e}")
+                logger.warning(f"落雪 OAuth profile 查询失败: {e}")
         if not fc and qq:
             player = await lxns.chu_player_by_qq(qq)
             fc = player.get("friend_code")
@@ -197,16 +190,8 @@ async def chu_minfo_handler(
                 yield event.plain_result("未找到匹配的歌曲。")
                 return
 
-        # 获取成绩：优先个人 API
-        if use_personal:
-            # 个人 API 无单曲查询端点，从全量成绩中筛选
-            all_scores = await lxns.chu_user_scores()
-            score = next((s for s in all_scores if s.get("id") == song.id), None)
-            if not score:
-                yield event.plain_result(f"未找到「{song.title}」的成绩记录。")
-                return
-        else:
-            score = await lxns.chu_best(fc, song_id=song.id)
+        # 获取成绩（开发者 API）
+        score = await lxns.chu_best(fc, song_id=song.id)
 
         fc_label = CHU_FC_LABELS.get(score.get("full_combo", ""), "-")
         chain_label = CHU_CHAIN_LABELS.get(score.get("full_chain", ""), "-")

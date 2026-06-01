@@ -460,18 +460,17 @@ async def lxns_mai_b50_handler(
             lv = ds_map.get((song_id, level_index))
             return f"{lv:.1f}" if lv is not None else "?"
 
-        # 获取玩家信息：优先个人 API
+        # 获取玩家信息：OAuth profile > QQ 开发者 API > 好友码
         player = None
         friend_code = None
-        use_personal = False
 
         if lxns._user_token:
             try:
-                player = await lxns.mai_user_player()
-                friend_code = player.get("friend_code")
-                use_personal = True
+                profile = await lxns.oauth_user_profile()
+                friend_code = profile.get("friend_code") or profile.get("maimai", {}).get("friend_code")
+                player = {"name": profile.get("name", "未知"), "rating": profile.get("maimai", {}).get("rating", 0), "friend_code": friend_code}
             except Exception as e:
-                logger.warning(f"落雪个人 API 查询失败: {e}")
+                logger.warning(f"落雪 OAuth profile 查询失败: {e}")
 
         if not player and qq:
             player = await lxns.mai_player_by_qq(qq)
@@ -486,11 +485,8 @@ async def lxns_mai_b50_handler(
             )
             return
 
-        # 获取 B50
-        if use_personal:
-            bests_data = await lxns._user_get("/user/maimai/player/bests")
-        else:
-            bests_data = await lxns.mai_bests(friend_code)
+        # 获取 B50（开发者 API）
+        bests_data = await lxns.mai_bests(friend_code)
 
         name = player.get("name", "未知")
         rating = player.get("rating", 0)
@@ -575,16 +571,14 @@ async def lxns_mai_minfo_handler(
                     resolved_id = int(results[0].id)
                     resolved_name = results[0].title
 
-        # 获取玩家信息
+        # 获取玩家信息：OAuth profile > QQ 开发者 API
         fc = None
-        use_personal = False
         if lxns._user_token:
             try:
-                player = await lxns.mai_user_player()
-                fc = player.get("friend_code")
-                use_personal = True
+                profile = await lxns.oauth_user_profile()
+                fc = profile.get("friend_code") or profile.get("maimai", {}).get("friend_code")
             except Exception as e:
-                logger.warning(f"落雪个人 API 查询失败: {e}")
+                logger.warning(f"落雪 OAuth profile 查询失败: {e}")
         if not fc and qq:
             player = await lxns.mai_player_by_qq(qq)
             fc = player.get("friend_code")
@@ -592,32 +586,17 @@ async def lxns_mai_minfo_handler(
             yield event.plain_result("未找到玩家。请先执行 `bindqq <QQ号>` 绑定。")
             return
 
-        # 获取单曲成绩
+        # 获取单曲成绩（开发者 API）
         search_id = resolved_id or (int(query) if query.isdigit() else None)
         search_name = resolved_name or (None if query.isdigit() else query)
-
-        if use_personal:
-            # 个人 API 无单曲查询端点，从全量成绩中筛选
-            all_scores = await lxns.mai_user_scores()
-            if search_id:
-                score = next((s for s in all_scores if s.get("id") == search_id), None)
-            elif search_name:
-                q = search_name.lower()
-                score = next((s for s in all_scores if q in s.get("song_name", "").lower()), None)
-            else:
-                score = None
-            if not score:
-                yield event.plain_result(f"未找到歌曲「{query}」的成绩记录。")
-                return
+        params = {}
+        if search_id:
+            params["song_id"] = search_id
+        elif search_name:
+            params["song_name"] = search_name
         else:
-            params = {}
-            if search_id:
-                params["song_id"] = search_id
-            elif search_name:
-                params["song_name"] = search_name
-            else:
-                params["song_name"] = query
-            score = await lxns.mai_best(fc, **params)
+            params["song_name"] = query
+        score = await lxns.mai_best(fc, **params)
 
         fc_label = score.get("fc", "") or "-"
         fs_label = score.get("fs", "") or "-"
