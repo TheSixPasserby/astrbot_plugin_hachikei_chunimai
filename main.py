@@ -388,20 +388,20 @@ class MaiChuPlugin(Star):
                     pass
         asyncio.create_task(_timeout())
 
-    async def _try_oauth_code(self, event: AstrMessageEvent) -> bool:
-        """检测用户是否在等待发送 OAuth 密钥。如果是，尝试交换并返回 True。"""
+    async def _try_oauth_code(self, event: AstrMessageEvent):
+        """检测用户是否在等待发送 OAuth 密钥。如果是，尝试交换。"""
         user_key = self._user_key(event)
         expire = self._pending_oauth.get(user_key)
         if not expire:
-            return False
+            return
         if time.time() > expire:
             del self._pending_oauth[user_key]
-            return False
+            return
 
         text = event.get_message_str().strip()
         # 密钥格式：通常 30 位左右的字母数字
         if len(text) < 10 or len(text) > 60 or " " in text:
-            return False
+            return
 
         client_id = self.config.get("lxns_client_id", "")
         client_secret = self.config.get("lxns_client_secret", "")
@@ -410,14 +410,12 @@ class MaiChuPlugin(Star):
         try:
             access_token = await self.lxns.oauth_exchange(text, client_id, client_secret, redirect_uri)
         except Exception as e:
-            # 不是有效密钥，忽略（可能是普通聊天消息）
             logger.debug(f"OAuth 交换尝试失败（非密钥消息）: {e}")
-            return False
+            return
 
         del self._pending_oauth[user_key]
         await self.user_store.set_lxns_token(user_key, access_token)
         yield self._message("✅ 落雪查分器绑定成功！现在可以直接使用 minfo、b50 等命令查分。")
-        return True
 
     def _get_qq(self, event: AstrMessageEvent) -> int | None:
         """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
