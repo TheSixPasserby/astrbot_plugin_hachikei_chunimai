@@ -57,7 +57,7 @@ class MaimaiDependencyError(MaimaiError):
 
 # 异常 -> 用户友好中文消息 的映射
 _ERROR_MESSAGES: dict[type[MaimaiError], str] = {
-    UserNotFoundError: "未在查分器中找到该用户，请发送「绑定落雪」授权查分器，或在 diving-fish.com 注册后重试。",
+    UserNotFoundError: "未在查分器中找到该用户，请发送「绑定账号」查看绑定帮助。",
     UserNotExistsError: "用户不存在。",
     UserDisabledQueryError: "该用户关闭了查询功能。",
     TokenNotFoundError: "未找到 Token，请先使用 `maimaitoken` 绑定。",
