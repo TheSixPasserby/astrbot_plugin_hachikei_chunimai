@@ -125,16 +125,17 @@ async def lxns_mai_b50_handler(
         _DIFF_LABELS = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "RE:MASTER"]
 
         def _fmt_song(s: dict) -> str:
-            """格式化歌曲名：【DX】曲名 [MASTER]"""
             stype = "DX" if s.get("type") == "dx" else "ST"
             diff = _DIFF_LABELS[s.get("level_index", 3)] if s.get("level_index", 3) < 5 else "?"
             return f"【{stype}】{s.get('song_name', '?')} [{diff}]"
 
-        if standard:
-            lines.append("## 旧版本 Best 35\n")
+        def _render_table(title: str, items: list, limit: int) -> None:
+            if not items:
+                return
+            lines.append(f"## {title}\n")
             lines.append("| # | 曲名 | 定数 | 达成率 | DX分 | 评级 | Rating | FC |")
             lines.append("|---|------|------|--------|------|------|--------|-----|")
-            for i, s in enumerate(standard[:35], 1):
+            for i, s in enumerate(items[:limit], 1):
                 fc = _fmt_fc(s.get("fc"))
                 rate = _fmt_rate(s.get("rate"))
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
@@ -143,20 +144,10 @@ async def lxns_mai_b50_handler(
                     f"| {i} | {_fmt_song(s)} | {ds} "
                     f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {r:.1f} | {fc} |"
                 )
+            lines.append("")
 
-        if dx:
-            lines.append("\n## 新版本 Best 15\n")
-            lines.append("| # | 曲名 | 定数 | 达成率 | DX分 | 评级 | Rating | FC |")
-            lines.append("|---|------|------|--------|------|------|--------|-----|")
-            for i, s in enumerate(dx[:15], 1):
-                fc = _fmt_fc(s.get("fc"))
-                rate = _fmt_rate(s.get("rate"))
-                ds = _get_ds(s.get("id", 0), s.get("level_index", 0))
-                r = s.get("dx_rating", 0) or s.get("rating", 0)
-                lines.append(
-                    f"| {i} | {_fmt_song(s)} | {ds} "
-                    f"| {s.get('achievements', 0):.4f}% | {s.get('dx_score', 0)} | {rate} | {r:.1f} | {fc} |"
-                )
+        _render_table("旧版本 Best 35", standard, 35)
+        _render_table("新版本 Best 15", dx, 15)
 
         # 查分器状态（与分表隔开，后续分表改为图片时此行保持文本）
         lines.append("")

@@ -87,31 +87,24 @@ async def b50_handler(
             diff = _DIFF_LABELS[c.level_index] if c.level_index < 5 else "?"
             return f"【DX】{c.title} [{diff}]"
 
-        if user_info.charts.sd:
-            sd_total = sum(c.ra for c in user_info.charts.sd)
-            lines.append(f"## SD Best 35 (总Ra: {sd_total})\n")
+        def _render_table(title: str, items: list, limit: int) -> None:
+            if not items:
+                return
+            total = sum(c.ra for c in items)
+            lines.append(f"## {title} (总Ra: {total})\n")
             lines.append("| # | 曲名 | 定数 | 达成率 | 评级 | Ra | FC |")
             lines.append("|---|------|------|--------|------|-----|-----|")
-            for i, c in enumerate(user_info.charts.sd[:35], 1):
+            for i, c in enumerate(items[:limit], 1):
                 fc = _fmt_fc(c.fc)
                 rate = _fmt_rate(c.rate)
                 ds = f"{c.ds:.1f}" if c.ds else "?"
                 lines.append(
                     f"| {i} | {_fmt_song(c)} | {ds} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
                 )
+            lines.append("")
 
-        if user_info.charts.dx:
-            dx_total = sum(c.ra for c in user_info.charts.dx)
-            lines.append(f"\n## DX Best 15 (总Ra: {dx_total})\n")
-            lines.append("| # | 曲名 | 定数 | 达成率 | 评级 | Ra | FC |")
-            lines.append("|---|------|------|--------|------|-----|-----|")
-            for i, c in enumerate(user_info.charts.dx[:15], 1):
-                fc = _fmt_fc(c.fc)
-                rate = _fmt_rate(c.rate)
-                ds = f"{c.ds:.1f}" if c.ds else "?"
-                lines.append(
-                    f"| {i} | {_fmt_song(c)} | {ds} | {c.achievements:.4f}% | {rate} | {c.ra} | {fc} |"
-                )
+        _render_table("SD Best 35", user_info.charts.sd or [], 35)
+        _render_table("DX Best 15", user_info.charts.dx or [], 15)
 
         # 查分器状态
         lines.append("")

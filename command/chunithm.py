@@ -110,59 +110,32 @@ async def chu_b30_handler(
 
         _CHU_DIFF = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "ULTIMA", "WORLD'S END"]
 
-        def _fmt_chu_song(s: dict) -> str:
+        def _fmt_song(s: dict) -> str:
             diff = _CHU_DIFF[s.get("level_index", 3)] if s.get("level_index", 3) < 6 else "?"
             return f"{s.get('song_name', '?')} [{diff}]"
 
-        # Best 30
-        if bests:
-            lines.append("## Best 30\n")
+        def _render_table(title: str, items: list, limit: int) -> None:
+            if not items:
+                return
+            lines.append(f"## {title}\n")
             lines.append("| # | 曲名 | 定数 | 分数 | 评级 | Rating | FC |")
             lines.append("|---|------|------|------|------|--------|-----|")
-            total = 0
-            for i, s in enumerate(bests[:30], 1):
+            total = 0.0
+            for i, s in enumerate(items[:limit], 1):
                 r = s.get("rating", 0)
                 total += r
                 fc = CHU_FC_LABELS.get(s.get("full_combo", ""), "-").upper()
                 rank = chu_rank_label(s.get("score", 0))
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 3))
                 lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} | {ds} "
+                    f"| {i} | {_fmt_song(s)} | {ds} "
                     f"| {s.get('score', 0)} | {rank} | {r:.2f} | {fc} |"
                 )
-            lines.append(f"\n**Best 30 均值: {total / min(30, len(bests)):.2f}**")
+            lines.append(f"\n**{title} 均值: {total / min(limit, len(items)):.2f}**\n")
 
-        # Selection 10
-        if selections:
-            lines.append("\n## Selection 10\n")
-            lines.append("| # | 曲名 | 定数 | 分数 | Rating |")
-            lines.append("|---|------|------|------|--------|")
-            total = 0
-            for i, s in enumerate(selections[:10], 1):
-                r = s.get("rating", 0)
-                total += r
-                ds = _get_ds(s.get("id", 0), s.get("level_index", 3))
-                lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} | {ds} "
-                    f"| {s.get('score', 0)} | {r:.2f} |"
-                )
-            lines.append(f"\n**Selection 10 均值: {total / min(10, len(selections)):.2f}**")
-
-        # New Best 20
-        if new_bests:
-            lines.append("\n## New Best 20\n")
-            lines.append("| # | 曲名 | 定数 | 分数 | Rating |")
-            lines.append("|---|------|------|------|--------|")
-            total = 0
-            for i, s in enumerate(new_bests[:20], 1):
-                r = s.get("rating", 0)
-                total += r
-                ds = _get_ds(s.get("id", 0), s.get("level_index", 3))
-                lines.append(
-                    f"| {i} | {_fmt_chu_song(s)} | {ds} "
-                    f"| {s.get('score', 0)} | {r:.2f} |"
-                )
-            lines.append(f"\n**New Best 20 均值: {total / min(20, len(new_bests)):.2f}**")
+        _render_table("Best 30", bests, 30)
+        _render_table("Selection 10", selections, 10)
+        _render_table("New Best 20", new_bests, 20)
 
         # 查分器状态
         lines.append("")
