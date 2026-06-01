@@ -145,41 +145,51 @@ class QRSyncService:
             return "该二维码已被使用，请重新获取。"
         return None
 
-    async def sync_to_divingfish(self, sgid: str, import_token: str) -> SyncResult:
-        """同步到水鱼查分器。"""
-        arcade_id = self._identifier(credentials=await self._get_arcade_creds(sgid))
+    async def get_arcade_credentials(self, sgid: str) -> dict:
+        """用 SGID 换取 arcade 凭证。返回 {"credentials": str, "player_name": str}。"""
+        identifier = await self.client.qrcode(sgid, http_proxy=self._proxy)
+        creds = getattr(identifier, "credentials", None)
+        if not isinstance(creds, str) or not creds:
+            raise RuntimeError("二维码返回的凭据格式异常。")
+
+        # 尝试获取玩家名
+        player_name = ""
+        try:
+            arcade_id = self._identifier(credentials=creds)
+            player = await self.client.players(arcade_id, provider=self._arcade_provider())
+            player_name = str(getattr(player, "name", "") or "")
+        except Exception:
+            pass
+
+        return {"credentials": creds, "player_name": player_name}
+
+    async def sync_creds_to_divingfish(self, arcade_creds: str, import_token: str) -> SyncResult:
+        """用缓存的凭证同步到水鱼。"""
+        arcade_id = self._identifier(credentials=arcade_creds)
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
 
         target_id = self._identifier(credentials=import_token)
         await self.client.updates(target_id, scores.scores, provider=self._divingfish_provider())
 
         return SyncResult(
-            player_name=getattr(scores, "player_name", "") or "",
+            player_name="",
             rating=getattr(scores, "rating", 0) or 0,
             score_count=len(scores.scores),
         )
 
-    async def sync_to_lxns(self, sgid: str, access_token: str) -> SyncResult:
-        """同步到落雪查分器。"""
-        arcade_id = self._identifier(credentials=await self._get_arcade_creds(sgid))
+    async def sync_creds_to_lxns(self, arcade_creds: str, access_token: str) -> SyncResult:
+        """用缓存的凭证同步到落雪。"""
+        arcade_id = self._identifier(credentials=arcade_creds)
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
 
         target_id = self._identifier(credentials=access_token)
         await self.client.updates(target_id, scores.scores, provider=self._lxns_provider())
 
         return SyncResult(
-            player_name=getattr(scores, "player_name", "") or "",
+            player_name="",
             rating=getattr(scores, "rating", 0) or 0,
             score_count=len(scores.scores),
         )
-
-    async def _get_arcade_creds(self, sgid: str) -> str:
-        """用 SGID 换取 arcade credentials 字符串。"""
-        identifier = await self.client.qrcode(sgid, http_proxy=self._proxy)
-        creds = getattr(identifier, "credentials", None)
-        if not isinstance(creds, str) or not creds:
-            raise RuntimeError("二维码返回的凭据格式异常。")
-        return creds
 
     async def close(self) -> None:
         if self._client:
