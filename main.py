@@ -534,15 +534,15 @@ class MaiChuPlugin(Star):
 
     async def _route_b50(self, event: AstrMessageEvent, game: str) -> None:
         """统一 B50/B30 路由。"""
-        qq = self._require_qq(event)
-        if qq is None:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
-            return
         # 临时设置用户 token（OAuth > 全局配置）
         user_token = self._get_lxns_token(event)
         saved_token = self.lxns._user_token
         if user_token:
             self.lxns._user_token = user_token
+        qq = self._get_qq(event)
+        if qq is None and not user_token:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `bindtoken` 绑定。")
+            return
         try:
             if game == "chunithm":
                 async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
@@ -558,14 +558,14 @@ class MaiChuPlugin(Star):
 
     async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
         """统一 minfo 路由。"""
-        qq = self._require_qq(event)
-        if qq is None:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
-            return
         user_token = self._get_lxns_token(event)
         saved_token = self.lxns._user_token
         if user_token:
             self.lxns._user_token = user_token
+        qq = self._get_qq(event)
+        if qq is None and not user_token:
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `bindtoken` 绑定。")
+            return
         try:
             if game == "chunithm":
                 async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
