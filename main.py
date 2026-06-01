@@ -443,13 +443,11 @@ class MaimaiPlugin(Star):
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
-        label = GAME_LABELS.get(game, game)
-        yield self._message(f"🎮 正在为 [{label}] 查询歌曲成绩，请稍候...")
         if game == "chunithm":
             async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         elif self._get_prober(event, "maimai") == "lxns":
-            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq):
+            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                 yield r
         else:
             async for r in minfo_handler(event, self.api, self.music_data, qq=qq):

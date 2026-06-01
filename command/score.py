@@ -124,9 +124,13 @@ async def minfo_handler(
                 names = "\n".join(f"  {m.id}. {m.title}" for m in results[:10])
                 yield event.plain_result(f"找到多首歌曲，请指定 ID：\n{names}")
                 return
-            else:
-                yield event.plain_result("未找到匹配的歌曲。")
-                return
+        if not music:
+            results = data_mgr.find_music_by_alias(query)
+            if results:
+                music = results[0]
+        if not music:
+            yield event.plain_result("未找到匹配的歌曲。")
+            return
 
         if qq is None:
             qq = _extract_qq_from_at(event)
@@ -189,9 +193,13 @@ async def ginfo_handler(
             results = data_mgr.find_music_by_keyword(query)
             if results:
                 music = results[0]
-            else:
-                yield event.plain_result("未找到匹配的歌曲。")
-                return
+        if not music:
+            results = data_mgr.find_music_by_alias(query)
+            if results:
+                music = results[0]
+        if not music:
+            yield event.plain_result("未找到匹配的歌曲。")
+            return
 
         if diff_idx >= len(music.level):
             yield event.plain_result(f"该歌曲没有 {DIFF_INDEX_TO_LABEL.get(diff_idx, str(diff_idx))} 难度。")
@@ -275,9 +283,13 @@ async def score_line_handler(
             results = data_mgr.find_music_by_keyword(query)
             if results:
                 music = results[0]
-            else:
-                yield event.plain_result("未找到匹配的歌曲。")
-                return
+        if not music:
+            results = data_mgr.find_music_by_alias(query)
+            if results:
+                music = results[0]
+        if not music:
+            yield event.plain_result("未找到匹配的歌曲。")
+            return
 
         if diff_idx >= len(music.charts):
             yield event.plain_result("该歌曲没有此难度。")

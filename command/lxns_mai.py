@@ -146,16 +146,33 @@ async def lxns_mai_minfo_handler(
     event: AstrMessageEvent,
     lxns: LxnsAPI,
     qq: int | None = None,
+    music_data: MusicDataManager | None = None,
     **_: Any,
 ):
     """落雪 maimai DX 单曲成绩查询。"""
     try:
         args = event.get_message_str().strip().split(maxsplit=1)
         if len(args) < 2:
-            yield event.plain_result("用法：maiminfo <歌曲名/ID>")
+            yield event.plain_result("用法：maiminfo <歌曲名/ID/别名>")
             return
 
         query = args[1].strip()
+
+        # 通过别名解析真实歌名/ID
+        resolved_name = None
+        resolved_id = None
+        if music_data:
+            m = music_data.music_list.by_id(query)
+            if m:
+                resolved_id = int(m.id)
+                resolved_name = m.title
+            else:
+                results = music_data.find_music_by_keyword(query)
+                if not results:
+                    results = music_data.find_music_by_alias(query)
+                if results:
+                    resolved_id = int(results[0].id)
+                    resolved_name = results[0].title
 
         # 获取玩家信息
         fc = None
@@ -175,22 +192,28 @@ async def lxns_mai_minfo_handler(
             return
 
         # 获取单曲成绩
+        search_id = resolved_id or (int(query) if query.isdigit() else None)
+        search_name = resolved_name or (None if query.isdigit() else query)
+
         if use_personal:
             # 个人 API 无单曲查询端点，从全量成绩中筛选
             all_scores = await lxns.mai_user_scores()
-            if query.isdigit():
-                target_id = int(query)
-                score = next((s for s in all_scores if s.get("id") == target_id), None)
-            else:
-                q = query.lower()
+            if search_id:
+                score = next((s for s in all_scores if s.get("id") == search_id), None)
+            elif search_name:
+                q = search_name.lower()
                 score = next((s for s in all_scores if q in s.get("song_name", "").lower()), None)
+            else:
+                score = None
             if not score:
                 yield event.plain_result(f"未找到歌曲「{query}」的成绩记录。")
                 return
         else:
             params = {}
-            if query.isdigit():
-                params["song_id"] = int(query)
+            if search_id:
+                params["song_id"] = search_id
+            elif search_name:
+                params["song_name"] = search_name
             else:
                 params["song_name"] = query
             score = await lxns.mai_best(fc, **params)
