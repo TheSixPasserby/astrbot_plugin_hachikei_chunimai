@@ -11,3 +11,4 @@ build/
 /static/local_alias.json
 /static/cover/
 *.log
+sync.bat
