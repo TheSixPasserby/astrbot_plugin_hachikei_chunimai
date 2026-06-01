@@ -225,7 +225,7 @@ class QRSyncService:
         imports = self._imports or {}
         checks = (
             ("AimeServerError", "二维码无效或已过期，请重新获取。"),
-            ("TitleServerBlockedError", "舞萌标题服务器拒绝了请求，请稍后再试。"),
+            ("TitleServerBlockedError", "舞萌标题服务器拒绝了请求，可能需要配置代理（http_proxy）或稍后再试。"),
             ("TitleServerNetworkError", "舞萌标题服务器网络请求失败，请稍后再试。"),
             ("TitleServerError", "舞萌标题服务器请求失败，请稍后再试。"),
             ("ArcadeIdentifierError", "二维码凭据无效或已过期，请重新获取。"),
