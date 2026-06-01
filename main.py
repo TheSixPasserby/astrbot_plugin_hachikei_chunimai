@@ -441,11 +441,6 @@ class MaiChuPlugin(Star):
         lxns_token = self.user_store.get_lxns_token(user_key)
         lxns_status = "✅ 已授权" if lxns_token else "❌ 未绑定"
 
-        # 全局落雪配置（管理员预设）
-        global_lxns = self.config.get("lxns_user_token", "")
-        if global_lxns and not lxns_token:
-            lxns_status = "⚙️ 使用全局配置"
-
         # 水鱼（DivingFish）
         divingfish_token = self.config.get("mai_divingfish_token", "")
         divingfish_status = "✅ 已配置" if divingfish_token else "❌ 未配置"
