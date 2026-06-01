@@ -22,22 +22,22 @@ from .command.alias import (
     alias_query_handler, alias_status_handler, update_alias_handler,
 )
 from .command.mai_guess import (
-    mai_mai_guess_music_handler, mai_mai_guess_pic_handler, mai_mai_guess_solve_handler,
-    mai_mai_reset_guess_handler,
+    mai_guess_music_handler, mai_guess_pic_handler, mai_guess_solve_handler,
+    mai_reset_guess_handler,
 )
 from .command.help import help_handler
 from .command.mai_score import (
-    mai_mai_b50_handler, mai_mai_ginfo_handler, mai_mai_minfo_handler, mai_my_mai_ranking_handler,
-    mai_mai_ranking_handler, mai_mai_score_calc_handler, mai_mai_score_line_handler,
+    mai_b50_handler, mai_ginfo_handler, mai_minfo_handler, mai_my_ranking_handler,
+    mai_ranking_handler, mai_score_calc_handler, mai_score_line_handler,
 )
 from .command.mai_search import (
-    mai_mai_query_by_id_handler, mai_mai_search_alias_handler, mai_mai_search_artist_handler,
-    mai_mai_search_base_handler, mai_mai_search_bpm_handler, mai_mai_search_charter_handler,
-    mai_mai_search_music_handler,
+    mai_query_by_id_handler, mai_search_alias_handler, mai_search_artist_handler,
+    mai_search_base_handler, mai_search_bpm_handler, mai_search_charter_handler,
+    mai_search_music_handler,
 )
 from .command.mai_table import (
     mai_level_achievement_list_handler, mai_level_progress_handler,
-    mai_mai_plate_progress_handler, mai_mai_rating_table_handler, mai_mai_rise_score_handler,
+    mai_plate_progress_handler, mai_rating_table_handler, mai_rise_score_handler,
 )
 from .errors import MaimaiError, describe_error
 from .mai_data import MusicDataManager
@@ -734,7 +734,7 @@ class MaiChuPlugin(Star):
             return
         game = self._resolve_game(event)
         if game == "maimai":
-            async for r in my_mai_ranking_handler(event, self.api, qq=qq):
+            async for r in mai_my_ranking_handler(event, self.api, qq=qq):
                 yield r
         else:
             yield self._message("CHUNITHM 暂无全局排行榜，请使用 `chub30` 查看个人 Rating 构成。")
