@@ -430,7 +430,12 @@ class MaimaiPlugin(Star):
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
         label = GAME_LABELS.get(game, game)
-        yield self._message(f"🎮 正在为 [{label}] 生成 {self._table_name(game)}，请稍候...")
+        table = self._table_name(game)
+
+        # 发送"正在生成"提示，获取消息 ID 用于撤回
+        gen_msg_id = await self._send_and_get_id(event, f"🎮 正在为 [{label}] 生成 {table}，请稍候...")
+
+        # 生成并发送分表
         if game == "chunithm":
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
@@ -440,6 +445,62 @@ class MaimaiPlugin(Star):
         else:
             async for r in b50_handler(event, self.api, self.music_data, qq=qq):
                 yield r
+
+        # 撤回"正在生成"提示
+        if gen_msg_id:
+            await self._recall_msg(event, gen_msg_id)
+
+    async def _send_and_get_id(self, event: AstrMessageEvent, text: str) -> str | None:
+        """发送消息并返回消息 ID（用于后续撤回）。"""
+        try:
+            adapter = self.context.get_platform_inst(event.get_platform_id())
+            if not adapter or not hasattr(adapter, "client"):
+                return None
+            client = adapter.client
+            group_id = self._group_id(event)
+
+            if group_id:
+                # 群消息
+                result = await client.post_group_message(
+                    group_openid=group_id,
+                    msg_type=0,
+                    content=text,
+                )
+            else:
+                # 私聊消息
+                result = await client.post_c2c_message(
+                    openid=event.get_sender_id(),
+                    msg_type=0,
+                    content=text,
+                )
+
+            if result and hasattr(result, "id"):
+                return str(result.id)
+        except Exception as e:
+            logger.warning(f"发送提示消息失败: {e}")
+        return None
+
+    async def _recall_msg(self, event: AstrMessageEvent, msg_id: str) -> None:
+        """撤回 QQ 官方 API 消息（群聊 + 私聊）。"""
+        try:
+            adapter = self.context.get_platform_inst(event.get_platform_id())
+            if not adapter or not hasattr(adapter, "client"):
+                return
+            client = adapter.client
+            group_id = self._group_id(event)
+
+            if group_id:
+                # 群消息撤回
+                url = f"/v2/groups/{group_id}/messages/{msg_id}"
+            else:
+                # 私聊消息撤回
+                url = f"/v2/users/{event.get_sender_id()}/messages/{msg_id}"
+
+            # 直接用 botpy 的 HTTP 客户端调 DELETE
+            if hasattr(client, "_http") and hasattr(client._http, "request"):
+                await client._http.request("DELETE", url)
+        except Exception as e:
+            logger.warning(f"消息撤回失败: {e}")
 
     async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
         """统一 minfo 路由。"""
