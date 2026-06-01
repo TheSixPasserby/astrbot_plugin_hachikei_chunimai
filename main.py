@@ -13,34 +13,34 @@ from astrbot.api.star import Context, Star, StarTools
 
 from .api_client import MaimaiAPI
 from .lxns_client import LxnsAPI
-from .chunithm_data import ChuDataManager
-from .command.chunithm import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
-from .command.lxns_mai import lxns_mai_b50_handler, lxns_mai_minfo_handler
+from .chu_data import ChuDataManager
+from .command.chunithm import chu_b30_handler, chu_mai_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
+from .command.lxns_mai import lxns_mai_mai_b50_handler, lxns_mai_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
     alias_global_push_handler, alias_local_apply_handler, alias_push_handler,
     alias_query_handler, alias_status_handler, update_alias_handler,
 )
-from .command.guess import (
-    guess_music_handler, guess_pic_handler, guess_solve_handler,
-    reset_guess_handler,
+from .command.mai_guess import (
+    mai_mai_guess_music_handler, mai_mai_guess_pic_handler, mai_mai_guess_solve_handler,
+    mai_mai_reset_guess_handler,
 )
 from .command.help import help_handler
-from .command.score import (
-    b50_handler, ginfo_handler, minfo_handler, my_ranking_handler,
-    ranking_handler, score_calc_handler, score_line_handler,
+from .command.mai_score import (
+    mai_mai_b50_handler, mai_mai_ginfo_handler, mai_mai_minfo_handler, mai_my_mai_ranking_handler,
+    mai_mai_ranking_handler, mai_mai_score_calc_handler, mai_mai_score_line_handler,
 )
-from .command.search import (
-    query_by_id_handler, search_alias_handler, search_artist_handler,
-    search_base_handler, search_bpm_handler, search_charter_handler,
-    search_music_handler,
+from .command.mai_search import (
+    mai_mai_query_by_id_handler, mai_mai_search_alias_handler, mai_mai_search_artist_handler,
+    mai_mai_search_base_handler, mai_mai_search_bpm_handler, mai_mai_search_charter_handler,
+    mai_mai_search_music_handler,
 )
-from .command.table import (
-    level_achievement_list_handler, level_progress_handler,
-    plate_progress_handler, rating_table_handler, rise_score_handler,
+from .command.mai_table import (
+    mai_level_achievement_list_handler, mai_level_progress_handler,
+    mai_mai_plate_progress_handler, mai_mai_rating_table_handler, mai_mai_rise_score_handler,
 )
 from .errors import MaimaiError, describe_error
-from .music_data import MusicDataManager
+from .mai_data import MusicDataManager
 from .storage import GroupConfigStore, UserStore
 from .utils import get_platform_adapter_name, is_group_message
 
@@ -55,7 +55,7 @@ GAME_LABELS = {"maimai": "maimai DX", "chunithm": "CHUNITHM"}
     "0.1.0",
     "",
 )
-class MaimaiPlugin(Star):
+class MaiChuPlugin(Star):
     """maimai DX / CHUNITHM 综合助手插件。"""
 
     def __init__(self, context: Context, config: AstrBotConfig | dict) -> None:
@@ -94,8 +94,8 @@ class MaimaiPlugin(Star):
 
     async def initialize(self) -> None:
         """异步初始化：配置 API、加载数据。"""
-        token = self.config.get("maimaidxtoken", "")
-        proxy = bool(self.config.get("maimai_http_proxy", ""))
+        token = self.config.get("mai_divingfish_token", "")
+        proxy = bool(self.config.get("http_proxy", ""))
         self.api.configure(token=token, proxy=proxy)
 
         # Lxns
@@ -382,7 +382,7 @@ class MaimaiPlugin(Star):
     # 群功能开关
     # ================================================================
 
-    @command("maitoggle", alias={"开启舞萌功能", "关闭舞萌功能"})
+    @command("gametoggle", alias={"开启功能", "关闭功能", "maitoggle"})
     async def _toggle_maimai(self, event: AstrMessageEvent):
         if not self._is_admin(event):
             yield self._message("需要管理员权限。")
@@ -488,10 +488,10 @@ class MaimaiPlugin(Star):
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         elif self._get_prober(event, "maimai") == "lxns":
-            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
+            async for r in lxns_mai_mai_b50_handler(event, self.lxns, qq=qq):
                 yield r
         else:
-            async for r in b50_handler(event, self.api, self.music_data, qq=qq):
+            async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
     async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
@@ -501,13 +501,13 @@ class MaimaiPlugin(Star):
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
         if game == "chunithm":
-            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+            async for r in chu_mai_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
         elif self._get_prober(event, "maimai") == "lxns":
-            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
+            async for r in lxns_mai_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                 yield r
         else:
-            async for r in minfo_handler(event, self.api, self.music_data, qq=qq):
+            async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
     # ================================================================
@@ -533,21 +533,21 @@ class MaimaiPlugin(Star):
         if self._is_group_disabled(event):
             return
         qq = self._get_qq(event)
-        async for r in ginfo_handler(event, self.api, self.music_data, qq=qq):
+        async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq):
             yield r
 
     @command("mailine")
     async def _mai_scoreline(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in score_line_handler(event, self.music_data):
+        async for r in mai_score_line_handler(event, self.music_data):
             yield r
 
     # ================================================================
     # CHUNITHM 专属命令
     # ================================================================
 
-    @command("b30", alias={"chub30"})
+    @command("chub30", alias={"b30"})
     async def _chu_b30(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
@@ -604,7 +604,7 @@ class MaimaiPlugin(Star):
             yield self._message("CHUNITHM 暂不支持 ginfo。")
         else:
             qq = self._get_qq(event)
-            async for r in ginfo_handler(event, self.api, self.music_data, qq=qq):
+            async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
     @command("分数线")
@@ -615,7 +615,7 @@ class MaimaiPlugin(Star):
         if game == "chunithm":
             yield self._message("CHUNITHM 暂不支持分数线。")
         else:
-            async for r in score_line_handler(event, self.music_data):
+            async for r in mai_score_line_handler(event, self.music_data):
                 yield r
 
     @command("查歌")
@@ -627,7 +627,7 @@ class MaimaiPlugin(Star):
             async for r in chu_search_handler(event, self.chu_data):
                 yield r
         else:
-            async for r in search_music_handler(event, self.music_data):
+            async for r in mai_search_music_handler(event, self.music_data):
                 yield r
 
     @command("id")
@@ -639,7 +639,7 @@ class MaimaiPlugin(Star):
             async for r in chu_id_handler(event, self.chu_data):
                 yield r
         else:
-            async for r in query_by_id_handler(event, self.music_data):
+            async for r in mai_query_by_id_handler(event, self.music_data):
                 yield r
 
     # --- 排名（共用命令，根据游戏模式路由） ---
@@ -650,7 +650,7 @@ class MaimaiPlugin(Star):
             return
         game = self._resolve_game(event)
         if game == "maimai":
-            async for r in ranking_handler(event, self.api):
+            async for r in mai_ranking_handler(event, self.api):
                 yield r
         else:
             yield self._message("CHUNITHM 暂无全局排行榜，请使用 `chub30` 查看个人 Rating 构成。")
@@ -665,7 +665,7 @@ class MaimaiPlugin(Star):
             return
         game = self._resolve_game(event)
         if game == "maimai":
-            async for r in my_ranking_handler(event, self.api, qq=qq):
+            async for r in my_mai_ranking_handler(event, self.api, qq=qq):
                 yield r
         else:
             yield self._message("CHUNITHM 暂无全局排行榜，请使用 `chub30` 查看个人 Rating 构成。")
@@ -676,42 +676,42 @@ class MaimaiPlugin(Star):
     async def _mai_search(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in search_music_handler(event, self.music_data):
+        async for r in mai_search_music_handler(event, self.music_data):
             yield r
 
     @command("maibase")
     async def _mai_base(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in search_base_handler(event, self.music_data):
+        async for r in mai_search_base_handler(event, self.music_data):
             yield r
 
     @command("maibpm")
     async def _mai_bpm(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in search_bpm_handler(event, self.music_data):
+        async for r in mai_search_bpm_handler(event, self.music_data):
             yield r
 
     @command("maiartist")
     async def _mai_artist(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in search_artist_handler(event, self.music_data):
+        async for r in mai_search_artist_handler(event, self.music_data):
             yield r
 
     @command("maicharter")
     async def _mai_charter(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in search_charter_handler(event, self.music_data):
+        async for r in mai_search_charter_handler(event, self.music_data):
             yield r
 
     @command("maiid")
     async def _mai_id(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in query_by_id_handler(event, self.music_data):
+        async for r in mai_query_by_id_handler(event, self.music_data):
             yield r
 
     # --- 猜歌（mai 前缀直接执行） ---
@@ -723,7 +723,7 @@ class MaimaiPlugin(Star):
         gid = self._group_id(event)
         if gid and not self.group_store.is_guess_enabled(gid):
             return
-        async for r in guess_music_handler(event, self.music_data):
+        async for r in mai_guess_music_handler(event, self.music_data):
             yield r
 
     @command("maiguesspic")
@@ -733,12 +733,12 @@ class MaimaiPlugin(Star):
         gid = self._group_id(event)
         if gid and not self.group_store.is_guess_enabled(gid):
             return
-        async for r in guess_pic_handler(event, self.music_data):
+        async for r in mai_guess_pic_handler(event, self.music_data):
             yield r
 
     @command("maiguessreset")
     async def _mai_guess_reset(self, event: AstrMessageEvent):
-        async for r in reset_guess_handler(event, self.music_data):
+        async for r in mai_reset_guess_handler(event, self.music_data):
             yield r
 
     @command("maiguesstoggle")
@@ -762,14 +762,14 @@ class MaimaiPlugin(Star):
     async def _mai_table(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in rating_table_handler(event, self.music_data):
+        async for r in mai_rating_table_handler(event, self.music_data):
             yield r
 
     @command("mairise")
     async def _mai_rise(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in rise_score_handler(event, self.api, self.music_data):
+        async for r in mai_rise_score_handler(event, self.api, self.music_data):
             yield r
 
     # ================================================================
@@ -858,19 +858,19 @@ class MaimaiPlugin(Star):
         if game == "maimai":
             # 猜歌答案
             if is_group_message(event):
-                async for r in guess_solve_handler(event, self.music_data):
+                async for r in mai_guess_solve_handler(event, self.music_data):
                     yield r
                     return
 
             # 别名查歌：xxx是什么歌
             if re.search(r"(是什么歌|是啥歌)$", text):
-                async for r in search_alias_handler(event, self.music_data):
+                async for r in mai_search_alias_handler(event, self.music_data):
                     yield r
                     return
 
             # 分数计算：X的Y是多少分
             if re.match(r"^[\d.]+的[\d.]+是多少分$", text):
-                async for r in score_calc_handler(event, self.music_data):
+                async for r in mai_score_calc_handler(event, self.music_data):
                     yield r
                     return
 
@@ -894,25 +894,25 @@ class MaimaiPlugin(Star):
 
             # 分数线
             if text.startswith("分数线"):
-                async for r in score_line_handler(event, self.music_data):
+                async for r in mai_score_line_handler(event, self.music_data):
                     yield r
                     return
 
             # X定数表
             if re.match(r"^(?!更新).+?定数表$", text):
-                async for r in rating_table_handler(event, self.music_data):
+                async for r in mai_rating_table_handler(event, self.music_data):
                     yield r
                     return
 
             # 版牌进度 / 等级进度
             if re.search(r"进度\s*$", text):
-                async for r in plate_progress_handler(event, self.api, self.music_data):
+                async for r in mai_plate_progress_handler(event, self.api, self.music_data):
                     yield r
                 return
 
             # 推分
             if re.match(r"^我要在", text):
-                async for r in rise_score_handler(event, self.api, self.music_data):
+                async for r in mai_rise_score_handler(event, self.api, self.music_data):
                     yield r
                     return
 
@@ -1001,7 +1001,7 @@ class MaimaiPlugin(Star):
         type_map = {"dx": "DX", "sd": "SD", "标准": "SD"}
         music_type = type_map.get(type_filter) if type_filter else None
 
-        from .music_data import DIFF_LABEL_TO_INDEX
+        from .mai_data import DIFF_LABEL_TO_INDEX
         diff_idx = DIFF_LABEL_TO_INDEX.get(diff_char)
 
         music = self.music_data.random_music(level=level, diff=diff_idx, type=music_type)

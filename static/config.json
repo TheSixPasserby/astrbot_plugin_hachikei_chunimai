@@ -1,7 +1,4 @@
 {
-  "maimaidxtoken": "",
-  "maimaidxproberproxy": false,
-  "maimaidxaliasproxy": false,
-  "maimaidxaliaspush": false,
-  "saveinmem": true
+  "mai_divingfish_token": "",
+  "http_proxy": ""
 }

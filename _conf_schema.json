@@ -11,13 +11,13 @@
     "description": "回复引用消息",
     "hint": "开启后机器人的回复会引用用户的消息"
   },
-  "maimaidxtoken": {
+  "mai_divingfish_token": {
     "type": "string",
     "default": "",
     "description": "DivingFish 查分器 Token",
     "hint": "在 diving-fish.com 个人设置中获取的 Developer Token"
   },
-  "maimai_http_proxy": {
+  "http_proxy": {
     "type": "string",
     "default": "",
     "description": "HTTP 代理地址",

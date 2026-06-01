@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..music_data import MusicDataManager, DIFF_INDEX_TO_LABEL
+from ..mai_data import MusicDataManager, DIFF_INDEX_TO_LABEL
 
 try:
     from astrbot.api import logger
@@ -32,7 +32,7 @@ def _format_music_info(music) -> str:
     )
 
 
-async def search_music_handler(
+async def mai_search_music_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -67,7 +67,7 @@ async def search_music_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def search_base_handler(
+async def mai_search_base_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -112,7 +112,7 @@ async def search_base_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def search_bpm_handler(
+async def mai_search_bpm_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -154,7 +154,7 @@ async def search_bpm_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def search_artist_handler(
+async def mai_search_artist_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -182,7 +182,7 @@ async def search_artist_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def search_charter_handler(
+async def mai_search_charter_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -214,7 +214,7 @@ async def search_charter_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def search_alias_handler(
+async def mai_search_alias_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -250,7 +250,7 @@ async def search_alias_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def query_by_id_handler(
+async def mai_query_by_id_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,

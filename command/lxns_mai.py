@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..music_data import MusicDataManager
+from ..mai_data import MusicDataManager
 from ..utils import fmt_fc as _fmt_fc, fmt_rate as _fmt_rate
 
 try:

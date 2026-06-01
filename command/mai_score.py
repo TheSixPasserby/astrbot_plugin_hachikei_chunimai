@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, MusicNotPlayError, describe_error
 from ..models import UserInfo
-from ..music_data import MusicDataManager, achievements_label, DIFF_INDEX_TO_LABEL
+from ..mai_data import MusicDataManager, achievements_label, DIFF_INDEX_TO_LABEL
 from ..utils import fmt_fc as _fmt_fc, fmt_rate as _fmt_rate
 from ..image_utils import pie_chart, image_to_base64
 
@@ -34,7 +34,7 @@ def _extract_qq_from_at(event: AstrMessageEvent) -> int | None:
     return None
 
 
-async def b50_handler(
+async def mai_b50_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
@@ -100,7 +100,7 @@ async def b50_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def minfo_handler(
+async def mai_minfo_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
@@ -159,7 +159,7 @@ async def minfo_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def ginfo_handler(
+async def mai_ginfo_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
@@ -248,7 +248,7 @@ async def ginfo_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def score_line_handler(
+async def mai_score_line_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -326,7 +326,7 @@ async def score_line_handler(
         yield event.plain_result(f"计算失败：{e}")
 
 
-async def score_calc_handler(
+async def mai_score_calc_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -351,7 +351,7 @@ async def score_calc_handler(
         yield event.plain_result(f"计算失败：{e}")
 
 
-async def ranking_handler(
+async def mai_ranking_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     **_: Any,
@@ -376,7 +376,7 @@ async def ranking_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def my_ranking_handler(
+async def mai_my_ranking_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     qq: int | None = None,

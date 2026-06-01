@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..music_data import MusicDataManager, achievements_label, LEVEL_LIST, DIFF_INDEX_TO_LABEL, music_by_plan
+from ..mai_data import MusicDataManager, achievements_label, LEVEL_LIST, DIFF_INDEX_TO_LABEL, music_by_plan
 
 try:
     from astrbot.api import logger
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from ..api_client import MaimaiAPI
 
 
-async def rating_table_handler(
+async def mai_rating_table_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -56,7 +56,7 @@ async def rating_table_handler(
     yield event.plain_result("\n".join(lines))
 
 
-async def rise_score_handler(
+async def mai_rise_score_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
@@ -132,7 +132,7 @@ async def rise_score_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def plate_progress_handler(
+async def mai_plate_progress_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
@@ -219,7 +219,7 @@ def _check_plate_rank(record, rank: str) -> bool:
     return False
 
 
-async def level_progress_handler(
+async def mai_level_progress_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
@@ -292,7 +292,7 @@ async def level_progress_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def level_achievement_list_handler(
+async def mai_level_achievement_list_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,

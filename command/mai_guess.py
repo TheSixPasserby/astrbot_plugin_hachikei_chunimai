@@ -8,7 +8,7 @@ import secrets
 from typing import TYPE_CHECKING, Any
 
 from ..image_utils import image_to_base64, music_picture_path
-from ..music_data import MusicDataManager
+from ..mai_data import MusicDataManager
 
 try:
     from astrbot.api import logger
@@ -42,7 +42,7 @@ def _pick_guess_data(data_mgr: MusicDataManager) -> dict | None:
     return {"music": music, "answer": answer, "options": options, "hint_index": 0}
 
 
-async def guess_music_handler(
+async def mai_guess_music_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -129,7 +129,7 @@ async def guess_music_handler(
     asyncio.create_task(send_hints())
 
 
-async def guess_solve_handler(
+async def mai_guess_solve_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -155,7 +155,7 @@ async def guess_solve_handler(
             return
 
 
-async def guess_pic_handler(
+async def mai_guess_pic_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,
@@ -225,7 +225,7 @@ async def guess_pic_handler(
         yield event.plain_result(f"生成失败：{e}")
 
 
-async def reset_guess_handler(
+async def mai_reset_guess_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
     **_: Any,

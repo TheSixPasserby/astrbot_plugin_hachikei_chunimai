@@ -26,8 +26,8 @@ AstrBot 插件，支持双游戏查分、搜歌、猜歌、牌桌、别名管理
 |--------|--------|------|
 | `bot_name` | `mai-bot` | 机器人显示名称 |
 | `enable_reply` | `true` | 回复时引用用户消息 |
-| `maimaidxtoken` | — | DivingFish Developer Token |
-| `maimai_http_proxy` | — | HTTP 代理地址 |
+| `mai_divingfish_token` | — | DivingFish Developer Token |
+| `http_proxy` | — | HTTP 代理地址 |
 | `enable_guess_game` | `true` | 启用猜歌功能 |
 | `enable_alias_push` | `false` | 启用别名 WebSocket 推送 |
 | `alias_push_uuid` | — | Yuzuchan 推送 UUID |

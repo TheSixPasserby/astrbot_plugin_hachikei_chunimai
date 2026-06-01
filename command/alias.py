@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..music_data import MusicDataManager
+from ..mai_data import MusicDataManager
 
 try:
     from astrbot.api import logger
