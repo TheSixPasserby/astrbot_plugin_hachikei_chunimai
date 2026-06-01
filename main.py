@@ -145,7 +145,7 @@ class MaiChuPlugin(Star):
         logger.info("maimai DX / CHUNITHM 插件已加载")
 
     async def _validate_lxns_tokens(self) -> None:
-        """插件重载时验证所有已绑定的落雪 token，失效的自动清除。"""
+        """插件重载时验证所有已绑定的落雪 token，仅 401 明确失效时清除。"""
         all_tokens = self.user_store.get_all_lxns_tokens()
         if not all_tokens:
             return
@@ -154,9 +154,16 @@ class MaiChuPlugin(Star):
         for user_key, token in all_tokens.items():
             try:
                 await self.lxns.oauth_get_player(token, "maimai")
-            except Exception:
-                expired.append(user_key)
-                await self.user_store.remove_lxns_token(user_key)
+            except Exception as e:
+                err_str = str(e).lower()
+                # 只有明确的 401 unauthorized 才判定为失效
+                if "401" in err_str or "unauthorized" in err_str or "invalid" in err_str:
+                    expired.append(user_key)
+                    await self.user_store.remove_lxns_token(user_key)
+                    logger.warning(f"落雪 token 失效 ({user_key}): {e}")
+                else:
+                    # 网络错误等不判定为失效
+                    logger.debug(f"落雪 token 验证跳过（非认证错误）({user_key}): {e}")
         if expired:
             self._expired_tokens = set(expired)
             logger.warning(f"落雪 token 失效 {len(expired)} 个，已自动清除")
