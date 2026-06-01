@@ -361,24 +361,24 @@ class MaiChuPlugin(Star):
 
         # bindtoken（无参数）— 生成授权链接
         if len(args) < 2:
-            redirect_uri = "https://example.com/callback"
+            redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
             oauth_url = (
                 f"https://maimai.lxns.net/oauth/authorize"
-                f"?client_id={client_id}"
+                f"?response_type=code"
+                f"&client_id={client_id}"
                 f"&redirect_uri={redirect_uri}"
-                f"&response_type=code"
+                f"&scope=read_user_profile+read_player+write_player"
             )
             yield self._message(
                 f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
-                f"授权后浏览器会跳转到一个打不开的页面，"
-                f"请复制地址栏中 `code=` 后面的那串字符，\n"
-                f"然后发送：bindtoken <code>"
+                f"授权后页面会显示一串 code，请复制并发送：\n"
+                f"bindtoken <code>"
             )
             return
 
         # bindtoken <code> — 交换 token
         code = args[1].strip()
-        redirect_uri = "https://example.com/callback"
+        redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
         try:
             token = await self.lxns.oauth_exchange(code, client_id, client_secret, redirect_uri)
         except Exception as e:
