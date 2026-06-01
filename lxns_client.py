@@ -74,40 +74,58 @@ class LxnsAPI:
     # OAuth2
     # ================================================================
 
-    async def oauth_user_profile(self) -> dict:
-        """用 OAuth token 获取用户 profile（含 friend_code）。"""
-        session = await self._get_session()
-        url = f"{self.BASE_URL}/user/profile"
-        headers = {"Authorization": f"Bearer {self._user_token}"}
-        async with session.get(url, headers=headers) as res:
-            data = await res.json()
-            logger.info(f"OAuth profile 响应: {data}")
-            if not data.get("success"):
-                msg = data.get("message", "未知错误")
-                raise ServerError(f"获取用户 profile 失败: {msg}")
-            return data.get("data", data)
-
     async def oauth_exchange(self, code: str, client_id: str, client_secret: str, redirect_uri: str) -> str:
-        """用授权码换取 access_token。返回 token 字符串。"""
+        """用授权码换取 access_token。"""
         session = await self._get_session()
         url = f"{self.BASE_URL}/oauth/token"
-        payload = {
+        async with session.post(url, data={
             "grant_type": "authorization_code",
             "code": code,
             "client_id": client_id,
             "client_secret": client_secret,
             "redirect_uri": redirect_uri,
-        }
-        async with session.post(url, json=payload) as res:
+        }) as res:
             data = await res.json()
-            logger.info(f"OAuth 响应: {data}")
             if not data.get("success"):
                 msg = data.get("message", "未知错误")
                 raise ServerError(f"OAuth 交换失败: {msg}")
-            token = data["data"].get("access_token", data["data"].get("token", ""))
-            if not token:
-                raise ServerError(f"OAuth 响应中无 token: {data}")
-            return token
+            return data["data"]["access_token"]
+
+    async def oauth_get_player(self, access_token: str, game: str = "maimai") -> dict:
+        """用 OAuth access_token 获取玩家信息。game: 'maimai' 或 'chunithm'"""
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/user/{game}/player"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with session.get(url, headers=headers) as res:
+            data = await res.json()
+            if not data.get("success"):
+                msg = data.get("message", "未知错误")
+                raise ServerError(f"获取玩家信息失败: {msg}")
+            return data.get("data", data)
+
+    async def oauth_get_bests(self, access_token: str, game: str = "maimai") -> dict:
+        """用 OAuth access_token 获取 B50/B30。"""
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/user/{game}/player/bests"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with session.get(url, headers=headers) as res:
+            data = await res.json()
+            if not data.get("success"):
+                msg = data.get("message", "未知错误")
+                raise ServerError(f"获取 bests 失败: {msg}")
+            return data.get("data", data)
+
+    async def oauth_get_scores(self, access_token: str, game: str = "maimai") -> list:
+        """用 OAuth access_token 获取全部成绩。"""
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/user/{game}/player/scores"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with session.get(url, headers=headers) as res:
+            data = await res.json()
+            if not data.get("success"):
+                msg = data.get("message", "未知错误")
+                raise ServerError(f"获取成绩失败: {msg}")
+            return data.get("data", data)
 
     # ================================================================
     # maimai DX（开发者 API）

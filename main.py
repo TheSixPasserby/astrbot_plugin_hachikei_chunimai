@@ -367,7 +367,7 @@ class MaiChuPlugin(Star):
                 f"?response_type=code"
                 f"&client_id={client_id}"
                 f"&redirect_uri={redirect_uri}"
-                f"&scope=read_user_profile+read_player+write_player"
+                f"&scope=read_player"
             )
             yield self._message(
                 f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
@@ -376,17 +376,17 @@ class MaiChuPlugin(Star):
             )
             return
 
-        # bindtoken <code> — 交换 token
+        # bindtoken <code> — 交换 access_token
         code = args[1].strip()
         redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
         try:
-            token = await self.lxns.oauth_exchange(code, client_id, client_secret, redirect_uri)
+            access_token = await self.lxns.oauth_exchange(code, client_id, client_secret, redirect_uri)
         except Exception as e:
             yield self._message(f"❌ 授权失败：{e}")
             return
 
         user_key = self._user_key(event)
-        await self.user_store.set_lxns_token(user_key, token)
+        await self.user_store.set_lxns_token(user_key, access_token)
         yield self._message("✅ 落雪查分器绑定成功！现在可以直接使用 minfo、b50 等命令查分。")
 
     def _get_qq(self, event: AstrMessageEvent) -> int | None:
