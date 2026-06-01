@@ -166,8 +166,17 @@ class QRSyncService:
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
         target_id = self._identifier(credentials=import_token)
         await self.client.updates(target_id, scores.scores, provider=self._divingfish_provider())
+
+        # 从水鱼获取玩家名
+        player_name = ""
+        try:
+            player = await self.client.players(target_id, provider=self._divingfish_provider())
+            player_name = str(getattr(player, "name", "") or "")
+        except Exception:
+            pass
+
         return SyncResult(
-            player_name="",
+            player_name=player_name,
             rating=getattr(scores, "rating", 0) or 0,
             score_count=len(scores.scores),
         )
@@ -178,8 +187,17 @@ class QRSyncService:
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
         target_id = self._identifier(credentials=access_token)
         await self.client.updates(target_id, scores.scores, provider=self._lxns_provider())
+
+        # 从落雪获取玩家名
+        player_name = ""
+        try:
+            player = await self.client.players(target_id, provider=self._lxns_provider())
+            player_name = str(getattr(player, "name", "") or "")
+        except Exception:
+            pass
+
         return SyncResult(
-            player_name="",
+            player_name=player_name,
             rating=getattr(scores, "rating", 0) or 0,
             score_count=len(scores.scores),
         )
@@ -187,16 +205,12 @@ class QRSyncService:
     async def sync_to_divingfish(self, sgid: str, import_token: str) -> SyncResult:
         """用 SGID 直接同步到水鱼。"""
         creds = await self.get_arcade_credentials(sgid)
-        result = await self.sync_creds_to_divingfish(creds["credentials"], import_token)
-        result.player_name = creds.get("player_name", "")
-        return result
+        return await self.sync_creds_to_divingfish(creds["credentials"], import_token)
 
     async def sync_to_lxns(self, sgid: str, access_token: str) -> SyncResult:
         """用 SGID 直接同步到落雪。"""
         creds = await self.get_arcade_credentials(sgid)
-        result = await self.sync_creds_to_lxns(creds["credentials"], access_token)
-        result.player_name = creds.get("player_name", "")
-        return result
+        return await self.sync_creds_to_lxns(creds["credentials"], access_token)
 
     async def close(self) -> None:
         if self._client:
