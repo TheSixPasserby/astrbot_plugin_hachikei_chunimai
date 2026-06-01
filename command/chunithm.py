@@ -298,3 +298,39 @@ async def chu_id_handler(
 
     except Exception as e:
         yield event.plain_result(f"查询失败：{e}")
+
+
+async def chu_alias_query_handler(
+    event: AstrMessageEvent,
+    data_mgr: ChuDataManager,
+    **_: Any,
+):
+    """查询 CHUNITHM 歌曲别名：X有什么别名。"""
+    try:
+        text = event.get_message_str().strip()
+        m = re.match(r"^(.+)\s有什么别[名称]$", text)
+        if not m:
+            return
+
+        query = m.group(1).strip()
+        song = data_mgr.find_by_id(query)
+        if not song:
+            results = data_mgr.find_by_keyword(query)
+            if results:
+                song = results[0]
+            else:
+                yield event.plain_result("未找到匹配的歌曲。")
+                return
+
+        aliases = data_mgr.get_aliases(song.id)
+        if aliases:
+            yield event.plain_result(
+                f"🎵 {song.title} (ID:{song.id}) 的别名：\n" +
+                "\n".join(f"  - {a}" for a in aliases)
+            )
+        else:
+            yield event.plain_result(f"🎵 {song.title} 暂无别名。")
+
+    except Exception as e:
+        logger.exception("CHUNITHM 别名查询异常")
+        yield event.plain_result(f"查询失败：{e}")

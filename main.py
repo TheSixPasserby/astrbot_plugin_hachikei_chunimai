@@ -14,7 +14,7 @@ from astrbot.api.star import Context, Star, StarTools
 from .api_client import MaimaiAPI
 from .lxns_client import LxnsAPI
 from .chunithm_data import ChuDataManager
-from .command.chunithm import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler
+from .command.chunithm import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
 from .command.lxns_mai import lxns_mai_b50_handler, lxns_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
@@ -916,11 +916,16 @@ class MaimaiPlugin(Star):
                     yield r
                     return
 
-            # 查询别名
-            if re.search(r"有什么别[名称]$", text):
+        # --- 共用：别名查询（按游戏路由） ---
+
+        if re.search(r"有什么别[名称]$", text):
+            if game == "chunithm":
+                async for r in chu_alias_query_handler(event, self.chu_data):
+                    yield r
+            else:
                 async for r in alias_query_handler(event, self.music_data):
                     yield r
-                    return
+            return
 
         # --- 以下仅 chunithm 模式 ---
 
