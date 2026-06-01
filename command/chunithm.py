@@ -69,8 +69,8 @@ async def chu_b30_handler(
                 player = await lxns.chu_user_player()
                 friend_code = player.get("friend_code")
                 use_personal = True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"落雪 CHUNITHM 个人 API 查询失败: {e}")
 
         if not player and qq:
             player = await lxns.chu_player_by_qq(qq)
@@ -178,8 +178,8 @@ async def chu_minfo_handler(
                 player = await lxns.chu_user_player()
                 fc = player.get("friend_code")
                 use_personal = True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"落雪 CHUNITHM 个人 API 查询失败: {e}")
         if not fc and qq:
             player = await lxns.chu_player_by_qq(qq)
             fc = player.get("friend_code")
