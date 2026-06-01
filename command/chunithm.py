@@ -22,6 +22,18 @@ if TYPE_CHECKING:
     from ..lxns_client import LxnsAPI
 
 
+def _fmt_rate(rate: str | None) -> str:
+    """格式化评级标签：sssp -> SSS+ 等。"""
+    if not rate:
+        return "-"
+    mapping = {
+        "sssp": "SSS+", "sss": "SSS", "ssp": "SS+", "ss": "SS",
+        "sp": "S+", "s": "S", "aaa": "AAA", "aa": "AA", "a": "A",
+        "bbb": "BBB", "bb": "BB", "b": "B", "c": "C", "d": "D",
+    }
+    return mapping.get(rate.lower(), rate.upper())
+
+
 def _get_friend_code(lxns: LxnsAPI, qq: int | None, username: str | None) -> int | None:
     """从 QQ 号或用户名获取好友码。此处返回 None，由调用方处理。"""
     return None
@@ -125,7 +137,7 @@ async def chu_b30_handler(
                 r = s.get("rating", 0)
                 total += r
                 fc = CHU_FC_LABELS.get(s.get("full_combo", ""), "-").upper()
-                rank = chu_rank_label(s.get("score", 0))
+                rank = _fmt_rate(s.get("rank"))
                 ds = _get_ds(s.get("id", 0), s.get("level_index", 3))
                 lines.append(
                     f"| {i} | {_fmt_song(s)} | {ds} "
