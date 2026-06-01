@@ -150,6 +150,15 @@ class UserStore:
             return d.get("lxns_token", "") or ""
         return ""
 
+    def get_all_lxns_tokens(self) -> dict[str, str]:
+        """获取所有绑定了落雪 token 的用户。返回 {user_key: token}。"""
+        result = {}
+        for key, d in self._data.items():
+            token = d.get("lxns_token", "") or ""
+            if token:
+                result[key] = token
+        return result
+
     async def remove_lxns_token(self, user_key: str) -> None:
         """删除用户的落雪 OAuth token。"""
         async with self._lock:

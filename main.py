@@ -81,6 +81,8 @@ class MaiChuPlugin(Star):
 
         # OAuth 绑定等待状态: {user_key: expire_timestamp}
         self._pending_oauth: dict[str, float] = {}
+        # token 失效的用户（插件重载时检测）
+        self._expired_tokens: set[str] = set()
 
         # 管理员 ID
         self.admin_ids: list[str] = []
@@ -125,7 +127,29 @@ class MaiChuPlugin(Star):
         if self.config.get("enable_alias_push") and self.config.get("alias_push_uuid"):
             await self.alias_push.start(self.context, self.group_store)
 
+        # 验证已绑定的落雪 token
+        await self._validate_lxns_tokens()
+
         logger.info("maimai DX / CHUNITHM 插件已加载")
+
+    async def _validate_lxns_tokens(self) -> None:
+        """插件重载时验证所有已绑定的落雪 token，失效的自动清除。"""
+        all_tokens = self.user_store.get_all_lxns_tokens()
+        if not all_tokens:
+            return
+        logger.info(f"正在验证 {len(all_tokens)} 个落雪 token...")
+        expired = []
+        for user_key, token in all_tokens.items():
+            try:
+                await self.lxns.oauth_get_player(token, "maimai")
+            except Exception:
+                expired.append(user_key)
+                await self.user_store.remove_lxns_token(user_key)
+        if expired:
+            self._expired_tokens = set(expired)
+            logger.warning(f"落雪 token 失效 {len(expired)} 个，已自动清除")
+        else:
+            logger.info("所有落雪 token 验证通过")
 
     async def terminate(self) -> None:
         """清理资源。"""
@@ -364,6 +388,7 @@ class MaiChuPlugin(Star):
             return
 
         del self._pending_oauth[user_key]
+        self._expired_tokens.discard(user_key)
         await self.user_store.set_lxns_token(user_key, access_token)
 
         # 自动切换舞萌查分器为落雪
@@ -398,7 +423,13 @@ class MaiChuPlugin(Star):
 
         # 落雪 OAuth
         lxns_token = self.user_store.get_lxns_token(user_key)
-        lxns_status = "✅ 已授权" if lxns_token else "❌ 未绑定"
+        token_expired = user_key in self._expired_tokens
+        if lxns_token:
+            lxns_status = "✅ 已授权"
+        elif token_expired:
+            lxns_status = "⚠️ 已失效"
+        else:
+            lxns_status = "❌ 未绑定"
 
         # 水鱼（DivingFish）
         divingfish_token = self.config.get("mai_divingfish_token", "")
@@ -412,12 +443,19 @@ class MaiChuPlugin(Star):
             f"| 落雪查分器 | {lxns_status} |",
             f"| 水鱼查分器 | {divingfish_status} |",
             "",
+        ]
+
+        if token_expired:
+            lines.append("⚠️ **落雪授权已失效**，请重新绑定。")
+            lines.append("")
+
+        lines.extend([
             "---",
             "**绑定指引：**",
             "• `绑定QQ <QQ号>` — 绑定 QQ",
             "• `绑定落雪` — 授权落雪查分器（推荐）",
             "• `解绑落雪` — 取消落雪授权",
-        ]
+        ])
         if not qq and not lxns_token:
             lines.append("")
             lines.append("⚠️ 你还没有绑定任何查分方式，请先绑定 QQ 或落雪。")
