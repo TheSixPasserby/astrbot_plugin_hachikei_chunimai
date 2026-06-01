@@ -28,11 +28,12 @@ CHU_LEVEL_LIST = [
 CHU_DIFF_LABELS = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "ULTIMA", "WORLD'S END"]
 CHU_DIFF_INDEX = {label: i for i, label in enumerate(CHU_DIFF_LABELS)}
 
+# [修正] 更新为 CHUNITHM NEW 以后的正确分数线
 CHU_RANK_THRESHOLDS = [
-    (1007500, "SSS+"), (1000000, "SSS"), (990000, "SS+"), (975000, "SS"),
-    (950000, "S+"), (925000, "S"), (900000, "AAA"), (800000, "AA"),
-    (700000, "A"), (600000, "BBB"), (500000, "BB"), (400000, "B"),
-    (300000, "C"), (0, "D"),
+    (1009000, "SSS+"), (1007500, "SSS"), (1005000, "SS+"), (1000000, "SS"),
+    (990000, "S+"), (975000, "S"), (950000, "AAA"), (925000, "AA"),
+    (900000, "A"), (800000, "BBB"), (700000, "BB"), (600000, "B"),
+    (500000, "C"), (0, "D"),
 ]
 
 CHU_CLEAR_LABELS = {
@@ -57,25 +58,31 @@ def chu_rank_label(score: int) -> str:
 
 
 def chu_rating(level_value: float, score: int) -> float:
-    """计算 CHUNITHM 单曲 Rating（来源: chunithm-eng.net）。"""
-    if score > 1007500:
-        return level_value + 2.0
-    if score > 1005000:
-        return level_value + 1.5 + (score - 1005000) / 2500 * 0.5
-    if score > 1000000:
-        return level_value + 1.0 + (score - 1000000) / 5000 * 0.5
-    if score > 975000:
-        return level_value + (score - 975000) / 25000 * 1.0
-    if score > 925000:
-        return level_value - 3.0 + (score - 925000) / 50000 * 3.0
-    if score > 900000:
-        return level_value - 5.0 + (score - 900000) / 25000 * 2.0
-    if score > 800000:
-        half = (level_value - 5) / 2
-        return half + (score - 800000) / 100000 * (level_value - 5 - half)
-    if score > 500000:
-        return (score - 500000) / 300000 * (level_value - 5) / 2
-    return 0.0
+    """计算 CHUNITHM 单曲 Rating (更新至 CHUNITHM NEW+ 现行标准)。"""
+    if score >= 1009000:
+        rating = level_value + 2.15
+    elif score >= 1007500:
+        rating = level_value + 2.0 + (score - 1007500) / 10000
+    elif score >= 1005000:
+        rating = level_value + 1.5 + (score - 1005000) / 5000
+    elif score >= 1000000:
+        rating = level_value + 1.0 + (score - 1000000) / 10000
+    elif score >= 975000:
+        rating = level_value + (score - 975000) / 25000
+    elif score >= 925000:
+        rating = level_value - 3.0 + (score - 925000) / 50000 * 3.0
+    elif score >= 900000:
+        rating = level_value - 5.0 + (score - 900000) / 25000 * 2.0
+    elif score >= 800000:
+        half = (level_value - 5.0) / 2
+        rating = half + (score - 800000) / 100000 * half
+    elif score >= 500000:
+        rating = (score - 500000) / 300000 * ((level_value - 5.0) / 2)
+    else:
+        rating = 0.0
+
+    # 街机游戏中 Rating 计算截断保留到小数点后两位
+    return max(0.0, int(rating * 100) / 100.0)
 
 
 # --- 数据类 ---
@@ -85,8 +92,9 @@ class ChuSong:
     __slots__ = ("id", "title", "artist", "genre", "bpm", "version", "difficulties", "disabled")
 
     def __init__(self, data: dict) -> None:
-        self.id: int = data["id"]
-        self.title: str = data["title"]
+        # 兼容 Lxns API 可能将 id 视作字符串或整型的情况
+        self.id: int = int(data.get("id", 0))
+        self.title: str = data.get("title", "")
         self.artist: str = data.get("artist", "")
         self.genre: str = data.get("genre", "")
         self.bpm: int = data.get("bpm", 0)
@@ -117,52 +125,72 @@ class ChuDataManager:
         self.songs: dict[int, ChuSong] = {}
         self.aliases: dict[int, list[str]] = {}
 
-    async def _read_json(self, name: str) -> Any:
+    async def _read_json(self, name: str) -> dict | None:
         p = self._dir / name
+        if not p.exists():
+            return None
         try:
             return await asyncio.to_thread(lambda: json.loads(p.read_text("utf-8")))
-        except (json.JSONDecodeError, OSError, FileNotFoundError):
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"读取本地缓存 {name} 失败: {e}")
             return None
 
     async def _write_json(self, name: str, data: Any) -> None:
         p = self._dir / name
-        await asyncio.to_thread(
-            lambda: p.write_text(json.dumps(data, ensure_ascii=False, indent=2), "utf-8")
-        )
+        try:
+            await asyncio.to_thread(
+                lambda: p.write_text(json.dumps(data, ensure_ascii=False, indent=2), "utf-8")
+            )
+        except OSError as e:
+            logger.error(f"写入本地缓存 {name} 失败: {e}")
 
     async def load_songs(self) -> None:
         """从 Lxns 加载歌曲数据。"""
+        data = None
         try:
-            data = await self.lxns.chu_song_list()
-            await self._write_json("songs.json", data)
-        except Exception:
-            logger.warning("从 Lxns 获取 CHUNITHM 歌曲失败，尝试本地缓存")
+            raw_data = await self.lxns.chu_song_list()
+            await self._write_json("songs.json", raw_data)
+            data = raw_data
+        except Exception as e:
+            logger.warning(f"从 Lxns 获取 CHUNITHM 歌曲失败 ({e})，尝试本地缓存")
             data = await self._read_json("songs.json")
-            if not data:
-                logger.error("无 CHUNITHM 歌曲数据缓存")
-                return
+
+        if not data:
+            logger.error("无 CHUNITHM 歌曲数据缓存可加载。")
+            return
+
+        # [修正] 兼容标准 API 响应 wrapper `{"success": true, "data": [...]}`
+        song_list = data.get("data", data.get("songs", [])) if isinstance(data, dict) else data
 
         self.songs = {}
-        for s in data.get("songs", []):
+        for s in song_list:
             song = ChuSong(s)
             self.songs[song.id] = song
         logger.info(f"CHUNITHM: 加载了 {len(self.songs)} 首歌曲")
 
     async def load_aliases(self) -> None:
         """从 Lxns 加载别名数据。"""
+        data = None
         try:
-            data = await self.lxns.chu_alias_list()
-            await self._write_json("aliases.json", data)
+            raw_data = await self.lxns.chu_alias_list()
+            await self._write_json("aliases.json", raw_data)
+            data = raw_data
             logger.info("从落雪获取 CHUNITHM 别名成功")
         except Exception as e:
             logger.warning(f"从落雪获取 CHUNITHM 别名失败: {e}，尝试本地缓存")
             data = await self._read_json("aliases.json")
-            if not data:
-                return
+
+        if not data:
+            return
+
+        # [修正] 同样兼容 wrapper，以及字典中可能是 song_id 或 id
+        alias_list = data.get("data", data.get("aliases", [])) if isinstance(data, dict) else data
 
         self.aliases = {}
-        for a in data.get("aliases", []):
-            self.aliases[a["song_id"]] = a.get("aliases", [])
+        for a in alias_list:
+            song_id = int(a.get("song_id", a.get("id", 0)))
+            if song_id:
+                self.aliases[song_id] = a.get("aliases", [])
         logger.info(f"CHUNITHM: 加载了 {len(self.aliases)} 条别名")
 
     async def load_all(self) -> None:
@@ -170,18 +198,25 @@ class ChuDataManager:
         await self.load_aliases()
 
     def find_by_keyword(self, keyword: str) -> list[ChuSong]:
+        """[修正] 优化了匹配算法，使用 dict(ID作为key) 防止出现大量重复查询"""
         kw = keyword.lower()
-        results = []
+        results: dict[int, ChuSong] = {}
+
+        # 1. 标题与曲师匹配
         for song in self.songs.values():
             if kw in song.title.lower() or kw in song.artist.lower():
-                results.append(song)
-        # 别名匹配
+                results[song.id] = song
+
+        # 2. 别名匹配 (跳过已经匹配成功的歌曲)
         for sid, aliases in self.aliases.items():
+            if sid in results:
+                continue
             if any(kw in a.lower() for a in aliases):
                 song = self.songs.get(sid)
-                if song and song not in results:
-                    results.append(song)
-        return results
+                if song:
+                    results[song.id] = song
+
+        return list(results.values())
 
     def find_by_id(self, song_id: int | str) -> ChuSong | None:
         try:
