@@ -20,7 +20,7 @@ HELP_TEXT = """\
 | 命令 | 说明 |
 |------|------|
 | `bindqq <QQ>` | 绑定 QQ 号（查分必需） |
-| `bindtoken` | 落雪 OAuth 授权绑定（推荐） |
+| `绑定落雪` | 落雪查分器授权绑定 |
 | `game maimai/chunithm` | 切换个人游戏模式 |
 | `game reset` | 清除个人设置，跟随群规则 |
 | `game status` | 查看当前游戏模式 |

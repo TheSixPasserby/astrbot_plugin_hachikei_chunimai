@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.all import register
@@ -77,6 +78,9 @@ class MaiChuPlugin(Star):
         self.music_data = MusicDataManager(self.api, data_dir)
         self.chu_data = ChuDataManager(self.lxns, data_dir)
         self.alias_push = AliasPushService(self.api, self.config.get("alias_push_uuid", ""))
+
+        # OAuth 绑定等待状态: {user_key: expire_timestamp}
+        self._pending_oauth: dict[str, float] = {}
 
         # 管理员 ID
         self.admin_ids: list[str] = []
@@ -343,51 +347,66 @@ class MaiChuPlugin(Star):
         await self.user_store.set_qq(user_key, qq)
         yield self._message(f"✅ 已绑定 QQ: {qq}")
 
-    @command("bindtoken", alias={"绑定token", "绑定落雪"})
-    async def _bind_token(self, event: AstrMessageEvent):
-        """落雪 OAuth 绑定。用法：bindtoken 或 bindtoken <code>"""
-        args = event.get_message_str().strip().split(maxsplit=1)
+    @command("bindlxns", alias={"绑定落雪"})
+    async def _bind_lxns(self, event: AstrMessageEvent):
+        """落雪 OAuth 绑定 — 生成链接，等待用户发送密钥。"""
         client_id = self.config.get("lxns_client_id", "")
         client_secret = self.config.get("lxns_client_secret", "")
 
-        # 没有 OAuth 配置
         if not client_id or not client_secret:
             yield self._message(
                 "⚠️ 管理员未配置落雪 OAuth 应用。\n"
-                "请在插件配置中填写 `lxns_client_id` 和 `lxns_client_secret`。\n"
-                "或手动在 maimai.lxns.net/user/profile 获取 Token 后配置 `lxns_user_token`。"
+                "请在插件配置中填写 `lxns_client_id` 和 `lxns_client_secret`。"
             )
             return
 
-        # bindtoken（无参数）— 生成授权链接
-        if len(args) < 2:
-            redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-            oauth_url = (
-                f"https://maimai.lxns.net/oauth/authorize"
-                f"?response_type=code"
-                f"&client_id={client_id}"
-                f"&redirect_uri={redirect_uri}"
-                f"&scope=read_user_profile+read_player+write_player"
-            )
-            yield self._message(
-                f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
-                f"授权后页面会显示一串 code，请复制并发送：\n"
-                f"bindtoken <code>"
-            )
-            return
-
-        # bindtoken <code> — 交换 access_token
-        code = args[1].strip()
         redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-        try:
-            access_token = await self.lxns.oauth_exchange(code, client_id, client_secret, redirect_uri)
-        except Exception as e:
-            yield self._message(f"❌ 授权失败：{e}")
-            return
+        oauth_url = (
+            f"https://maimai.lxns.net/oauth/authorize"
+            f"?response_type=code"
+            f"&client_id={client_id}"
+            f"&redirect_uri={redirect_uri}"
+            f"&scope=read_user_profile+read_player+write_player"
+        )
 
         user_key = self._user_key(event)
+        self._pending_oauth[user_key] = time.time() + 15 * 60
+
+        yield self._message(
+            f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
+            f"授权后页面会显示一串密钥，请在 **15 分钟内** 直接发送到聊天窗口即可。"
+        )
+
+    async def _try_oauth_code(self, event: AstrMessageEvent) -> bool:
+        """检测用户是否在等待发送 OAuth 密钥。如果是，尝试交换并返回 True。"""
+        user_key = self._user_key(event)
+        expire = self._pending_oauth.get(user_key)
+        if not expire:
+            return False
+        if time.time() > expire:
+            del self._pending_oauth[user_key]
+            return False
+
+        text = event.get_message_str().strip()
+        # 密钥格式：通常 30 位左右的字母数字
+        if len(text) < 10 or len(text) > 60 or " " in text:
+            return False
+
+        client_id = self.config.get("lxns_client_id", "")
+        client_secret = self.config.get("lxns_client_secret", "")
+        redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+
+        try:
+            access_token = await self.lxns.oauth_exchange(text, client_id, client_secret, redirect_uri)
+        except Exception as e:
+            # 不是有效密钥，忽略（可能是普通聊天消息）
+            logger.debug(f"OAuth 交换尝试失败（非密钥消息）: {e}")
+            return False
+
+        del self._pending_oauth[user_key]
         await self.user_store.set_lxns_token(user_key, access_token)
         yield self._message("✅ 落雪查分器绑定成功！现在可以直接使用 minfo、b50 等命令查分。")
+        return True
 
     def _get_qq(self, event: AstrMessageEvent) -> int | None:
         """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
@@ -541,7 +560,7 @@ class MaiChuPlugin(Star):
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
         if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `bindtoken` 绑定。")
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `绑定落雪` 绑定。")
             return
         try:
             if game == "chunithm":
@@ -564,7 +583,7 @@ class MaiChuPlugin(Star):
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
         if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `bindtoken` 绑定。")
+            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 或 `绑定落雪` 绑定。")
             return
         try:
             if game == "chunithm":
@@ -917,6 +936,12 @@ class MaiChuPlugin(Star):
     async def _on_message(self, event: AstrMessageEvent):
         """全局消息处理：猜歌答案、别名查歌、分数计算、运势等。"""
         if self._is_group_disabled(event):
+            return
+
+        # OAuth 密钥监听（15 分钟内直接发送密钥）
+        if self._pending_oauth.get(self._user_key(event)):
+            async for r in self._try_oauth_code(event):
+                yield r
             return
 
         text = event.get_message_str().strip()

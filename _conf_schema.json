@@ -78,7 +78,7 @@
     "type": "string",
     "default": "",
     "description": "落雪个人 API 密钥（手动填写，优先级低于 OAuth 绑定）",
-    "hint": "在 maimai.lxns.net/user/profile 生成，或使用 bindtoken 命令绑定"
+    "hint": "在 maimai.lxns.net/user/profile 生成，或使用 绑定落雪 命令绑定"
   },
   "lxns_client_id": {
     "type": "string",

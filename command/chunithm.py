@@ -80,7 +80,7 @@ async def chu_b30_handler(
 
         if not player or not friend_code:
             yield event.plain_result(
-                "未找到玩家。请先执行 `bindqq <QQ号>` 绑定，或使用 `bindtoken` 授权。"
+                "未找到玩家。请先执行 `bindqq <QQ号>` 绑定，或使用 `绑定落雪` 授权。"
             )
             return
 
