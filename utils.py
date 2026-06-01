@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-import time
+import secrets
 from datetime import datetime, timezone, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -17,12 +17,30 @@ except ImportError:
     import logging
     logger = logging.getLogger(__name__)
 
-# --- 密钥脱敏 ---
 
-def mask_secret(value: str, prefix_len: int = 6, suffix_len: int = 4) -> str:
-    if not value or len(value) <= prefix_len + suffix_len:
-        return "***"
-    return f"{value[:prefix_len]}***{value[-suffix_len:]}"
+# --- 评级/连击格式化 ---
+
+def fmt_fc(fs: str | None) -> str:
+    """格式化 FC/FS 标签：fcp -> FC+, app -> AP+, fsdp -> FDX+ 等。"""
+    if not fs:
+        return "-"
+    mapping = {
+        "app": "AP+", "ap": "AP", "fcp": "FC+", "fc": "FC",
+        "fsdp": "FDX+", "fsd": "FDX", "fsp": "FS+", "fs": "FS", "sync": "SYNC",
+    }
+    return mapping.get(fs.lower(), fs.upper())
+
+
+def fmt_rate(rate: str | None) -> str:
+    """格式化评级标签：sssp -> SSS+ 等。"""
+    if not rate:
+        return "-"
+    mapping = {
+        "sssp": "SSS+", "sss": "SSS", "ssp": "SS+", "ss": "SS",
+        "sp": "S+", "s": "S", "aaa": "AAA", "aa": "AA", "a": "A",
+        "bbb": "BBB", "bb": "BB", "b": "B", "c": "C", "d": "D",
+    }
+    return mapping.get(rate.lower(), rate.upper())
 
 
 # --- QQ Hash ---
@@ -36,8 +54,10 @@ def qq_hash(qq: str) -> int:
 
 _CN_TZ = timezone(timedelta(hours=8))
 
+
 def now_cn() -> datetime:
     return datetime.now(_CN_TZ)
+
 
 def format_ts(ts: float) -> str:
     return datetime.fromtimestamp(ts, _CN_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -46,7 +66,6 @@ def format_ts(ts: float) -> str:
 # --- 密码学安全的随机选择 ---
 
 def secure_choice(items: list) -> Any:
-    import secrets
     return items[secrets.randbelow(len(items))]
 
 
@@ -68,16 +87,10 @@ def is_group_message(event: AstrMessageEvent) -> bool:
         return False
 
 
-def get_sender_display_name(event: AstrMessageEvent) -> str:
-    try:
-        return event.get_sender_name() or event.get_sender_id()
-    except Exception:
-        return event.get_sender_id()
-
-
 # --- @提及解析 ---
 
 _AT_PATTERN = re.compile(r"@(\S+)")
+
 
 def extract_at_targets(event: AstrMessageEvent) -> list[str]:
     """从消息中提取 @提及 的用户 ID 列表。"""
@@ -93,12 +106,3 @@ def extract_at_targets(event: AstrMessageEvent) -> list[str]:
         for m in _AT_PATTERN.finditer(event.get_message_str()):
             targets.append(m.group(1))
     return targets
-
-
-# --- 安全整数转换 ---
-
-def safe_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return default

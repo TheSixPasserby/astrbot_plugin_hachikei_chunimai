@@ -6,10 +6,8 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..chunithm_data import (
-    ChuDataManager, chu_rank_label, chu_rating,
-    CHU_DIFF_LABELS, CHU_FC_LABELS, CHU_CHAIN_LABELS, CHU_CLEAR_LABELS,
-)
+from ..chunithm_data import ChuDataManager, chu_rank_label, CHU_FC_LABELS, CHU_CHAIN_LABELS
+from ..utils import fmt_rate as _fmt_rate
 
 try:
     from astrbot.api import logger
@@ -20,23 +18,6 @@ except ImportError:
 if TYPE_CHECKING:
     from astrbot.api.event import AstrMessageEvent
     from ..lxns_client import LxnsAPI
-
-
-def _fmt_rate(rate: str | None) -> str:
-    """格式化评级标签：sssp -> SSS+ 等。"""
-    if not rate:
-        return "-"
-    mapping = {
-        "sssp": "SSS+", "sss": "SSS", "ssp": "SS+", "ss": "SS",
-        "sp": "S+", "s": "S", "aaa": "AAA", "aa": "AA", "a": "A",
-        "bbb": "BBB", "bb": "BB", "b": "B", "c": "C", "d": "D",
-    }
-    return mapping.get(rate.lower(), rate.upper())
-
-
-def _get_friend_code(lxns: LxnsAPI, qq: int | None, username: str | None) -> int | None:
-    """从 QQ 号或用户名获取好友码。此处返回 None，由调用方处理。"""
-    return None
 
 
 async def chu_b30_handler(

@@ -6,10 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..music_data import (
-    MusicDataManager, achievements_label, diff_index_to_label,
-    diff_label_to_index, filter_music, levelList, music_by_plan, version_list,
-)
+from ..music_data import MusicDataManager, achievements_label, LEVEL_LIST, music_by_plan
 
 try:
     from astrbot.api import logger
@@ -34,8 +31,8 @@ async def rating_table_handler(
         return
 
     level = m.group(1).strip()
-    if level not in levelList:
-        yield event.plain_result(f"无效等级。可用：{', '.join(levelList)}")
+    if level not in LEVEL_LIST:
+        yield event.plain_result(f"无效等级。可用：{', '.join(LEVEL_LIST)}")
         return
 
     plan = music_by_plan(data_mgr.music_list, level)

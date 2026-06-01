@@ -60,8 +60,6 @@ def chu_rating(level_value: float, score: int) -> float:
     """计算 CHUNITHM 单曲 Rating。"""
     if score >= 1007500:
         return level_value + 2.0
-    if score >= 1000000:
-        return level_value + 1.5
     if score >= 1005000:
         return level_value + 1.5 + (score - 1000000) / 10000 * 0.5
     if score >= 1000000:

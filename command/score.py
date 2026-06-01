@@ -8,29 +8,7 @@ from typing import TYPE_CHECKING, Any
 from ..errors import MaimaiError, MusicNotPlayError, describe_error
 from ..models import UserInfo
 from ..music_data import MusicDataManager, achievements_label, diff_index_to_label
-
-
-def _fmt_fc(fs: str | None) -> str:
-    """格式化 FC/FS 标签。"""
-    if not fs:
-        return "-"
-    mapping = {
-        "app": "AP+", "ap": "AP", "fcp": "FC+", "fc": "FC",
-        "fsdp": "FDX+", "fsd": "FDX", "fsp": "FS+", "fs": "FS", "sync": "SYNC",
-    }
-    return mapping.get(fs.lower(), fs.upper())
-
-
-def _fmt_rate(rate: str | None) -> str:
-    """格式化评级标签：sssp -> SSS+ 等。"""
-    if not rate:
-        return "-"
-    mapping = {
-        "sssp": "SSS+", "sss": "SSS", "ssp": "SS+", "ss": "SS",
-        "sp": "S+", "s": "S", "aaa": "AAA", "aa": "AA", "a": "A",
-        "bbb": "BBB", "bb": "BB", "b": "B", "c": "C", "d": "D",
-    }
-    return mapping.get(rate.lower(), rate.upper())
+from ..utils import fmt_fc as _fmt_fc, fmt_rate as _fmt_rate
 from ..image_utils import pie_chart, image_to_base64
 
 try:
@@ -271,7 +249,7 @@ async def score_line_handler(
     try:
         text = event.get_message_str().strip()
         # 解析：分数线 <目标%> <歌曲名> [难度]
-        m = re.match(r"^分数线\s+([\d.]+)%?\s+(.+?)(?:\s+(绿|黄|红|紫白|basic|advanced|expert|master|remaster))?$", text, re.I)
+        m = re.match(r"^分数线\s+([\d.]+)%?\s+(.+?)(?:\s+(绿|黄|红|紫|白|basic|advanced|expert|master|remaster))?$", text, re.I)
         if not m:
             if "帮助" in text:
                 yield event.plain_result(

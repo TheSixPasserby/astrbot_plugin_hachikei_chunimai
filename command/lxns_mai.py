@@ -6,29 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
 from ..music_data import MusicDataManager
-
-
-def _fmt_fc(fs: str | None) -> str:
-    """格式化 FC/FS 标签：fcp -> FC+, app -> AP+, fsdp -> FDX+ 等。"""
-    if not fs:
-        return "-"
-    mapping = {
-        "app": "AP+", "ap": "AP", "fcp": "FC+", "fc": "FC",
-        "fsdp": "FDX+", "fsd": "FDX", "fsp": "FS+", "fs": "FS", "sync": "SYNC",
-    }
-    return mapping.get(fs.lower(), fs.upper())
-
-
-def _fmt_rate(rate: str | None) -> str:
-    """格式化评级标签：sssp -> SSS+, sss -> SSS 等。"""
-    if not rate:
-        return "-"
-    mapping = {
-        "sssp": "SSS+", "sss": "SSS", "ssp": "SS+", "ss": "SS",
-        "sp": "S+", "s": "S", "aaa": "AAA", "aa": "AA", "a": "A",
-        "bbb": "BBB", "bb": "BB", "b": "B", "c": "C", "d": "D",
-    }
-    return mapping.get(rate.lower(), rate.upper())
+from ..utils import fmt_fc as _fmt_fc, fmt_rate as _fmt_rate
 
 try:
     from astrbot.api import logger

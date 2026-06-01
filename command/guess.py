@@ -67,9 +67,6 @@ async def guess_music_handler(
     guess_obj = GuessData(music=music, img="", answer=data["answer"], end=False)
     data_mgr.guess_manager.set(group_id, guess_obj)
 
-    # 存储额外数据
-    data_mgr.guess_manager.active[group_id]._extra = data
-
     options = data["options"]
     hints = [
         f"🎵 猜歌开始！\n提示 1/7：这首歌的{options[0]}",

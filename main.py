@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import time
-from typing import Any
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.all import register
@@ -908,14 +906,11 @@ class MaimaiPlugin(Star):
                     yield r
                     return
 
-            # 版牌进度
+            # 版牌进度 / 等级进度
             if re.search(r"进度\s*$", text):
                 async for r in plate_progress_handler(event, self.api, self.music_data):
                     yield r
-                    return
-                async for r in level_progress_handler(event, self.api, self.music_data):
-                    yield r
-                    return
+                return
 
             # 推分
             if re.match(r"^我要在", text):
@@ -1017,8 +1012,8 @@ class MaimaiPlugin(Star):
         type_map = {"dx": "DX", "sd": "SD", "标准": "SD"}
         music_type = type_map.get(type_filter) if type_filter else None
 
-        from .music_data import diff_label_to_index
-        diff_idx = diff_label_to_index.get(diff_char)
+        from .music_data import DIFF_LABEL_TO_INDEX
+        diff_idx = DIFF_LABEL_TO_INDEX.get(diff_char)
 
         music = self.music_data.random_music(level=level, diff=diff_idx, type=music_type)
         if not music:

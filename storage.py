@@ -34,6 +34,7 @@ class UserRecord:
             last_sync_at=d.get("last_sync_at", 0.0) or 0.0,
             last_sync_result=d.get("last_sync_result", "") or "",
             game_mode=d.get("game_mode", "") or "",
+            qq=d.get("qq", "") or "",
         )
 
     def to_dict(self) -> dict[str, Any]:

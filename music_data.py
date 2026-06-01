@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
 import secrets
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
-import numpy as np
+from .api_client import MaimaiAPI
+from .models import Alias, Music, RaMusic, Stats
 
-from .models import (
-    Alias, AliasStatus, GuessData, Music, Notes1, Notes2,
-    PlayInfoDefault, RaMusic, Stats,
-)
+try:
+    from astrbot.api import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
 
 class MusicList(list):
@@ -34,52 +35,16 @@ class MusicList(list):
                 return m
         return None
 
-    def random(self) -> Music | None:
-        import secrets
-        return secrets.choice(self) if self else None
-from .api_client import MaimaiAPI
-
-try:
-    from astrbot.api import logger
-except ImportError:
-    import logging
-    logger = logging.getLogger(__name__)
-
 
 # --- 常量 ---
 
-levelList = [
+LEVEL_LIST = [
     "1", "2", "3", "4", "5", "6", "7", "7+", "8", "8+",
     "9", "9+", "10", "10+", "11", "11+", "12", "12+", "13", "13+", "14", "14+", "15",
 ]
 
-genre_list = [
-    "舞萌", "POPS & アニメ", "niconico & ボーカロイド", "東方Project",
-    "ゲーム", "maimai", "オンゲキ", "CHUNITHM",
-]
-
-version_list = [
-    "maimai", "maimai PLUS", "maimai GreeN", "maimai GreeN PLUS",
-    "maimai ORANGE", "maimai ORANGE PLUS", "maimai PiNK", "maimai PiNK PLUS",
-    "maimai MURASAKi", "maimai MURASAKi PLUS", "maimai MiLK", "miLK PLUS",
-    "maimai FiNALE", "maimai でらっくす", "maimai でらっくす PLUS",
-    "maimai でらっくす Splash", "maimai でらっくす Splash PLUS",
-    "maimai でらっくす UNiVERSE", "maimai でらっくす UNiVERSE PLUS",
-    "maimai でらっくす FESTiVAL", "maimai でらっくす FESTiVAL PLUS",
-    "maimai でらっくす BUDDiES", "maimai でらっくす BUDDiES PLUS",
-    "maimai でらっくす PRiSM", "maimai でらっくす PRiSM PLUS",
-]
-
-diff_label_to_index = {"绿": 0, "黄": 1, "红": 2, "紫": 3, "白": 4}
-diff_index_to_label = {v: k for k, v in diff_label_to_index.items()}
-
-diff_label_list = ["Basic", "Advanced", "Expert", "Master", "Re:MASTER"]
-
-combo_list = ["fc", "fcp", "ap", "app"]
-sync_list = ["fs", "fsp", "fsd", "fsdp", "fdx"]
-
-combo_label = {"fc": "FC", "fcp": "FC+", "ap": "AP", "app": "AP+"}
-sync_label = {"fs": "FS", "fsp": "FS+", "fsd": "FSD", "fsdp": "FSD+", "fdx": "FDX"}
+DIFF_LABEL_TO_INDEX = {"绿": 0, "黄": 1, "红": 2, "紫": 3, "白": 4}
+DIFF_INDEX_TO_LABEL = {v: k for k, v in DIFF_LABEL_TO_INDEX.items()}
 
 achievements_list = [
     (100.5, "SSS+"), (100.0, "SSS"), (99.5, "SS+"), (99.0, "SS"),
@@ -189,7 +154,7 @@ def music_by_level_list(music_list: MusicList) -> dict[str, dict[str, list[RaMus
 
     level_data = {
         lv: {f"{lv.rstrip('+')}.{i}": [] for i in level_range(lv)}
-        for lv in levelList
+        for lv in LEVEL_LIST
     }
     for music in music_list:
         if int(music.id) >= 100000:
@@ -459,7 +424,8 @@ class MusicDataManager:
             candidates = [m for m in candidates if m.type == type]
         return secure_choice(candidates) if candidates else None
 
-    def compute_ra(self, ds: float, achievements: float) -> int:
+    @staticmethod
+    def compute_ra(ds: float, achievements: float) -> int:
         """计算单曲 Rating (Ra)。"""
         if achievements >= 100.5:
             base = ds + 2.0
