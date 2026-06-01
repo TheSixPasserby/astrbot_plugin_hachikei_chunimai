@@ -290,26 +290,26 @@ class MaiChuPlugin(Star):
 
     @command("switchprober", alias={"切换查分器", "更改查分器"})
     async def _switch_prober(self, event: AstrMessageEvent):
-        """切换舞萌查分器。用法：更改查分器 水鱼/落雪"""
+        """切换舞萌查分器。用法：更改查分器 自动/水鱼/落雪"""
         full_text = event.get_message_str().strip()
         args = full_text.split(maxsplit=1)
         param = args[1].strip() if len(args) > 1 else ""
 
         prober_input = None
         for t in [full_text, param]:
-            m = re.match(r"^(?:切换|更改)?(?:舞萌)?(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", t, re.I)
+            m = re.match(r"^(?:切换|更改)?(?:舞萌)?(?:查分器)?\s*(自动|水鱼|落雪|auto|divingfish|lxns)$", t, re.I)
             if m:
                 prober_input = m.group(1).lower()
                 break
 
         if not prober_input:
-            yield self._message("用法：更改查分器 水鱼/落雪")
+            yield self._message("用法：更改查分器 自动/水鱼/落雪\n自动模式会根据绑定状态智能选择查分器。")
             return
 
-        prober_map = {"水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
+        prober_map = {"自动": "auto", "auto": "auto", "水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
         prober = prober_map.get(prober_input)
         if not prober:
-            yield self._message("无效查分器。可选：水鱼、落雪")
+            yield self._message("无效查分器。可选：自动、水鱼、落雪")
             return
 
         group_id = self._group_id(event)
@@ -318,13 +318,67 @@ class MaiChuPlugin(Star):
             return
 
         await self.group_store.set_prober("maimai", prober, group_id)
-        prober_label = "水鱼" if prober == "divingfish" else "落雪"
+        prober_label = {"auto": "自动", "divingfish": "水鱼", "lxns": "落雪"}[prober]
         yield self._message(f"✅ 舞萌查分器已切换为 {prober_label}。")
 
     def _get_prober(self, event: AstrMessageEvent, game: str) -> str:
-        """获取当前群指定游戏的查分器。"""
+        """获取当前群指定游戏的查分器。默认 auto。"""
         gid = self._group_id(event)
-        return self.group_store.get_prober(game, gid)
+        return self.group_store.get_prober(game, gid) or "auto"
+
+    async def _resolve_mai_prober(self, event: AstrMessageEvent) -> str:
+        """智能解析舞萌查分器：auto 模式下根据绑定状态和数据新鲜度决定。"""
+        prober = self._get_prober(event, "maimai")
+        if prober != "auto":
+            return prober
+
+        user_token = self._get_lxns_token(event)
+        qq = self._get_qq(event)
+
+        # 有 Lxns token，无 QQ → 直接用落雪
+        if user_token and not qq:
+            return "lxns"
+
+        # 有 QQ → 两边都查，看哪个有数据
+        if qq:
+            has_divingfish = bool(self.config.get("mai_divingfish_token", ""))
+            has_lxns = bool(user_token) or bool(self.config.get("lxns_dev_key", ""))
+
+            if has_divingfish and has_lxns:
+                # 并发查询两边，取有数据的
+                df_ok = False
+                lxns_ok = False
+                try:
+                    await self.api.query_user_b50(qqid=qq)
+                    df_ok = True
+                except Exception:
+                    pass
+                saved = self.lxns._user_token
+                if user_token:
+                    self.lxns._user_token = user_token
+                try:
+                    await self.lxns.mai_player_by_qq(qq)
+                    lxns_ok = True
+                except Exception:
+                    pass
+                finally:
+                    self.lxns._user_token = saved
+
+                if lxns_ok and not df_ok:
+                    return "lxns"
+                if df_ok:
+                    return "divingfish"
+            elif has_lxns:
+                return "lxns"
+            elif has_divingfish:
+                return "divingfish"
+
+        # 有 token 但也有 QQ，或只有 token → 落雪
+        if user_token:
+            return "lxns"
+
+        # 都没有 → 默认水鱼
+        return "divingfish"
 
     # ================================================================
     # 绑定 QQ
@@ -604,7 +658,6 @@ class MaiChuPlugin(Star):
 
     async def _route_b50(self, event: AstrMessageEvent, game: str) -> None:
         """统一 B50/B30 路由。"""
-        # 临时设置用户 token（OAuth > 全局配置）
         user_token = self._get_lxns_token(event)
         saved_token = self.lxns._user_token
         if user_token:
@@ -617,7 +670,7 @@ class MaiChuPlugin(Star):
             if game == "chunithm":
                 async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                     yield r
-            elif self._get_prober(event, "maimai") == "lxns":
+            elif await self._resolve_mai_prober(event) == "lxns":
                 async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
@@ -640,7 +693,7 @@ class MaiChuPlugin(Star):
             if game == "chunithm":
                 async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                     yield r
-            elif self._get_prober(event, "maimai") == "lxns":
+            elif await self._resolve_mai_prober(event) == "lxns":
                 async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
