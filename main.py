@@ -457,21 +457,18 @@ class MaimaiPlugin(Star):
             if not adapter or not hasattr(adapter, "client"):
                 return None
             client = adapter.client
+            api = getattr(client, "api", None)
+            if not api:
+                return None
             group_id = self._group_id(event)
 
             if group_id:
-                # 群消息
-                result = await client.post_group_message(
-                    group_openid=group_id,
-                    msg_type=0,
-                    content=text,
+                result = await api.post_group_message(
+                    group_openid=group_id, msg_type=0, content=text,
                 )
             else:
-                # 私聊消息
-                result = await client.post_c2c_message(
-                    openid=event.get_sender_id(),
-                    msg_type=0,
-                    content=text,
+                result = await api.post_c2c_message(
+                    openid=event.get_sender_id(), msg_type=0, content=text,
                 )
 
             if result and hasattr(result, "id"):
@@ -490,15 +487,19 @@ class MaimaiPlugin(Star):
             group_id = self._group_id(event)
 
             if group_id:
-                # 群消息撤回
                 url = f"/v2/groups/{group_id}/messages/{msg_id}"
             else:
-                # 私聊消息撤回
                 url = f"/v2/users/{event.get_sender_id()}/messages/{msg_id}"
 
-            # 直接用 botpy 的 HTTP 客户端调 DELETE
-            if hasattr(client, "_http") and hasattr(client._http, "request"):
-                await client._http.request("DELETE", url)
+            # 用 botpy 内部 HTTP 客户端发 DELETE 请求
+            http = getattr(client, "_http", None) or getattr(client, "http", None)
+            if http and hasattr(http, "request"):
+                await http.request("DELETE", url)
+            else:
+                # fallback: 直接用 aiohttp
+                import httpx
+                async with httpx.AsyncClient(timeout=10) as hc:
+                    await hc.delete(f"https://api.sgroup.qq.com{url}")
         except Exception as e:
             logger.warning(f"消息撤回失败: {e}")
 
