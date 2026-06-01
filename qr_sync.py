@@ -9,6 +9,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
+try:
+    from astrbot.api import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+
 
 
 # --- SGID 解析 ---
@@ -158,8 +164,9 @@ class QRSyncService:
             arcade_id = self._identifier(credentials=creds)
             player = await self.client.players(arcade_id, provider=self._arcade_provider())
             player_name = str(getattr(player, "name", "") or "")
-        except Exception:
-            pass
+            logger.info(f"获取到玩家名: {player_name}, player 对象: {player}")
+        except Exception as e:
+            logger.warning(f"获取玩家名失败: {e}")
 
         return {"credentials": creds, "player_name": player_name}
 
@@ -179,6 +186,7 @@ class QRSyncService:
         """用缓存的凭证同步到落雪。"""
         arcade_id = self._identifier(credentials=arcade_creds)
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
+        logger.info(f"scores 对象属性: {[a for a in dir(scores) if not a.startswith('_')]}")
         target_id = self._identifier(credentials=access_token)
         await self.client.updates(target_id, scores.scores, provider=self._lxns_provider())
         return SyncResult(
