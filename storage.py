@@ -136,6 +136,20 @@ class UserStore:
             return d.get("qq", "") or ""
         return ""
 
+    async def set_lxns_token(self, user_key: str, token: str) -> None:
+        """保存用户的落雪 OAuth token。"""
+        async with self._lock:
+            rec = self._data.setdefault(user_key, {})
+            rec["lxns_token"] = token
+            await self.save()
+
+    def get_lxns_token(self, user_key: str) -> str:
+        """获取用户的落雪 OAuth token。"""
+        d = self._data.get(user_key)
+        if d:
+            return d.get("lxns_token", "") or ""
+        return ""
+
 
 class GroupConfigStore:
     """群级配置存储（猜歌开关、别名推送开关、禁用群列表等）。"""

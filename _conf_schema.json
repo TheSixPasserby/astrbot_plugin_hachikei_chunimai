@@ -77,7 +77,19 @@
   "lxns_user_token": {
     "type": "string",
     "default": "",
-    "description": "落雪个人 API 密钥",
-    "hint": "在 maimai.lxns.net/user/profile 生成，用于访问自己的数据"
+    "description": "落雪个人 API 密钥（手动填写，优先级低于 OAuth 绑定）",
+    "hint": "在 maimai.lxns.net/user/profile 生成，或使用 bindtoken 命令绑定"
+  },
+  "lxns_client_id": {
+    "type": "string",
+    "default": "",
+    "description": "落雪 OAuth 应用 Client ID",
+    "hint": "在 maimai.lxns.net/developer 创建应用获取，留空则禁用 OAuth 绑定"
+  },
+  "lxns_client_secret": {
+    "type": "string",
+    "default": "",
+    "description": "落雪 OAuth 应用 Client Secret",
+    "hint": "创建应用时获取，请妥善保管"
   }
 }

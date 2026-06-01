@@ -343,6 +343,52 @@ class MaiChuPlugin(Star):
         await self.user_store.set_qq(user_key, qq)
         yield self._message(f"✅ 已绑定 QQ: {qq}")
 
+    @command("bindtoken", alias={"绑定token", "绑定落雪"})
+    async def _bind_token(self, event: AstrMessageEvent):
+        """落雪 OAuth 绑定。用法：bindtoken 或 bindtoken <code>"""
+        args = event.get_message_str().strip().split(maxsplit=1)
+        client_id = self.config.get("lxns_client_id", "")
+        client_secret = self.config.get("lxns_client_secret", "")
+
+        # 没有 OAuth 配置
+        if not client_id or not client_secret:
+            yield self._message(
+                "⚠️ 管理员未配置落雪 OAuth 应用。\n"
+                "请在插件配置中填写 `lxns_client_id` 和 `lxns_client_secret`。\n"
+                "或手动在 maimai.lxns.net/user/profile 获取 Token 后配置 `lxns_user_token`。"
+            )
+            return
+
+        # bindtoken（无参数）— 生成授权链接
+        if len(args) < 2:
+            redirect_uri = "https://example.com/callback"
+            oauth_url = (
+                f"https://maimai.lxns.net/oauth/authorize"
+                f"?client_id={client_id}"
+                f"&redirect_uri={redirect_uri}"
+                f"&response_type=code"
+            )
+            yield self._message(
+                f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
+                f"授权后浏览器会跳转到一个打不开的页面，"
+                f"请复制地址栏中 `code=` 后面的那串字符，\n"
+                f"然后发送：bindtoken <code>"
+            )
+            return
+
+        # bindtoken <code> — 交换 token
+        code = args[1].strip()
+        redirect_uri = "https://example.com/callback"
+        try:
+            token = await self.lxns.oauth_exchange(code, client_id, client_secret, redirect_uri)
+        except Exception as e:
+            yield self._message(f"❌ 授权失败：{e}")
+            return
+
+        user_key = self._user_key(event)
+        await self.user_store.set_lxns_token(user_key, token)
+        yield self._message("✅ 落雪查分器绑定成功！现在可以直接使用 minfo、b50 等命令查分。")
+
     def _get_qq(self, event: AstrMessageEvent) -> int | None:
         """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
         # 1. 尝试从 @提及 获取
@@ -366,6 +412,14 @@ class MaiChuPlugin(Star):
         if qq is None:
             return None
         return qq
+
+    def _get_lxns_token(self, event: AstrMessageEvent) -> str:
+        """获取用户的有效落雪 token：优先 OAuth 绑定，其次全局配置。"""
+        user_key = self._user_key(event)
+        token = self.user_store.get_lxns_token(user_key)
+        if token:
+            return token
+        return self.config.get("lxns_user_token", "")
 
     # ================================================================
     # 帮助
@@ -484,15 +538,23 @@ class MaiChuPlugin(Star):
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
-        if game == "chunithm":
-            async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
-                yield r
-        elif self._get_prober(event, "maimai") == "lxns":
-            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
-                yield r
-        else:
-            async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq):
-                yield r
+        # 临时设置用户 token（OAuth > 全局配置）
+        user_token = self._get_lxns_token(event)
+        saved_token = self.lxns._user_token
+        if user_token:
+            self.lxns._user_token = user_token
+        try:
+            if game == "chunithm":
+                async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
+                    yield r
+            elif self._get_prober(event, "maimai") == "lxns":
+                async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
+                    yield r
+            else:
+                async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq):
+                    yield r
+        finally:
+            self.lxns._user_token = saved_token
 
     async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
         """统一 minfo 路由。"""
@@ -500,15 +562,22 @@ class MaiChuPlugin(Star):
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
-        if game == "chunithm":
-            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
-                yield r
-        elif self._get_prober(event, "maimai") == "lxns":
-            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
-                yield r
-        else:
-            async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq):
-                yield r
+        user_token = self._get_lxns_token(event)
+        saved_token = self.lxns._user_token
+        if user_token:
+            self.lxns._user_token = user_token
+        try:
+            if game == "chunithm":
+                async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
+                    yield r
+            elif self._get_prober(event, "maimai") == "lxns":
+                async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
+                    yield r
+            else:
+                async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq):
+                    yield r
+        finally:
+            self.lxns._user_token = saved_token
 
     # ================================================================
     # maimai 专属命令
