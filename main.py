@@ -26,7 +26,7 @@ from .command.mai_guess import (
     mai_guess_music_handler, mai_guess_pic_handler, mai_guess_solve_handler,
     mai_reset_guess_handler,
 )
-from .command.help import help_handler
+from .command.help import help_handler, admin_help_handler
 from .command.mai_score import (
     mai_b50_handler, mai_ginfo_handler, mai_minfo_handler, mai_my_ranking_handler,
     mai_ranking_handler, mai_score_calc_handler, mai_score_line_handler,
@@ -200,60 +200,16 @@ class MaiChuPlugin(Star):
 
     @command("更改游戏", alias={"game", "切换游戏"})
     async def _switch_game(self, event: AstrMessageEvent):
-        """切换查询游戏。"""
+        """切换查询游戏。用法：更改游戏 舞萌/中二"""
         args = event.get_message_str().strip().split()
-        # args[0] 是命令名
 
         if len(args) < 2:
-            current = self._resolve_game(event)
-            label = GAME_LABELS.get(current, current)
-            user_key = self._user_key(event)
-            personal = self.user_store.get_game_mode(user_key)
-            gid = self._group_id(event)
-            group_default = self.group_store.get_group_game_mode(gid) if gid else "maimai"
-
-            lines = [f"🎮 当前查询游戏: {label}"]
-            if personal:
-                lines.append(f"  来源: 个人设置")
-            elif gid:
-                lines.append(f"  来源: 群默认")
-            lines.append("")
-            lines.append("用法:")
-            lines.append("  更改游戏 舞萌/中二 — 设置个人查询游戏")
-            lines.append("  更改游戏 重置 — 清除个人设置")
-            lines.append("  更改游戏 状态 — 查看详情")
-            if self._is_admin(event):
-                lines.append("  更改游戏 群 舞萌/中二 — 设置群默认")
-            yield self._message("\n".join(lines))
+            yield self._message("用法：更改游戏 舞萌/中二")
             return
 
         sub = args[1].lower()
 
-        # 状态
-        if sub in ("status", "状态"):
-            current = self._resolve_game(event)
-            label = GAME_LABELS.get(current, current)
-            user_key = self._user_key(event)
-            personal = self.user_store.get_game_mode(user_key)
-            gid = self._group_id(event)
-            group_default = self.group_store.get_group_game_mode(gid) if gid else "maimai"
-
-            lines = [f"🎮 查询游戏详情"]
-            lines.append(f"  生效: {label}")
-            lines.append(f"  个人: {GAME_LABELS.get(personal, personal) or '(未设置)'}")
-            if gid:
-                lines.append(f"  群默认: {GAME_LABELS.get(group_default, group_default)}")
-            yield self._message("\n".join(lines))
-            return
-
-        # 重置
-        if sub in ("reset", "重置"):
-            user_key = self._user_key(event)
-            await self.user_store.set_game_mode(user_key, "")
-            yield self._message("✅ 已清除个人查询游戏设置，将跟随群规则。")
-            return
-
-        # 群默认
+        # 群默认（管理员）
         if sub in ("group", "群"):
             if not self._is_admin(event):
                 yield self._message("需要管理员权限。")
@@ -508,7 +464,17 @@ class MaiChuPlugin(Star):
     async def _help(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in help_handler(event):
+        current_game = self._resolve_game(event)
+        gid = self._group_id(event)
+        group_game = self.group_store.get_group_game_mode(gid) if gid else None
+        async for r in help_handler(event, current_game, group_game):
+            yield r
+
+    @command("ahelp", alias={"管理帮助"})
+    async def _admin_help(self, event: AstrMessageEvent):
+        if not self._is_admin(event):
+            return
+        async for r in admin_help_handler(event):
             yield r
 
     # ================================================================

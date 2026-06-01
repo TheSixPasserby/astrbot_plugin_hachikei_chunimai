@@ -7,27 +7,21 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from astrbot.api.event import AstrMessageEvent
 
-HELP_TEXT = """\
-# 🎵 maimai DX & CHUNITHM 综合助手
 
-> 首次使用请先 **`绑定QQ <QQ号>`** 绑定 QQ，否则查分命令无法找到你。
-> 带 ⭐ 的命令支持游戏模式路由：前缀 `mai`/`chu` 可强制指定游戏。
+def build_help_text(current_game: str = "maimai", group_game: str | None = None) -> str:
+    """构建帮助文本，带动态页眉。"""
+    game_label = "maimai DX" if current_game == "maimai" else "CHUNITHM"
 
----
+    header = f"# 🎵 maimai DX & CHUNITHM 综合助手\n\n🎮 当前查询游戏: **{game_label}**"
+    if group_game is not None:
+        group_label = "maimai DX" if group_game == "maimai" else "CHUNITHM"
+        header += f"  |  群默认: **{group_label}**"
 
-## ⚙️ 基础设置
+    return f"""\
+{header}
 
-| 命令 | 说明 |
-|------|------|
-| `绑定账号` | 查看绑定状态与引导 |
-| `绑定QQ <QQ号>` | 绑定 QQ 号 |
-| `绑定落雪` | 落雪查分器授权绑定 |
-| `解绑落雪` | 取消落雪授权 |
-| `更改游戏 舞萌/中二` | 切换查询游戏 |
-| `game reset` | 清除个人设置，跟随群规则 |
-| `game status` | 查看当前游戏模式 |
-| `game group maimai/chunithm` | *(管理员)* 设置群默认游戏 |
-| `更改查分器 水鱼/落雪` | 切换舞萌查分器 |
+> 首次使用请发送 **`绑定账号`** 查看绑定指引。
+> 带 ⭐ 的命令支持查询游戏路由：前缀 `mai`/`chu` 可强制指定游戏。
 
 ---
 
@@ -75,7 +69,6 @@ HELP_TEXT = """\
 | `maiguess` | `猜歌` | 文字猜歌 |
 | `maiguesspic` | `猜曲绘` | 看封面猜歌 |
 | `maiguessreset` | `重置猜歌` | 强制结束当前猜歌 |
-| `maiguesstoggle` | — | *(管理员)* 开关猜歌功能 |
 
 ---
 
@@ -99,18 +92,6 @@ HELP_TEXT = """\
 | `aliasstatus` | `当前投票` | 查看待投票 |
 | `<歌曲>有什么别名` | — | 查询歌曲别名 |
 | `aliaslocal <歌曲> <别名>` | `添加本地别名` | 仅本群可用 |
-| `aliastoggle` | — | 开关别名推送 |
-
----
-
-## 🔧 管理员
-
-| 命令 | 别名 | 说明 |
-|------|------|------|
-| `maiupdate` | `更新maimai数据` | 刷新 maimai 曲库 |
-| `aliasupdate` | `更新别名库` | 刷新别名库 |
-| `gametoggle` | `maitoggle` | 群功能开关 |
-| `更改别名源 <游戏> <数据源>` | `切换别名源` | 切换舞萌/中二的别名数据源 |
 
 ---
 
@@ -124,5 +105,31 @@ HELP_TEXT = """\
 """
 
 
-async def help_handler(event: AstrMessageEvent):
-    yield event.make_result().use_markdown(True).message(HELP_TEXT)
+ADMIN_HELP_TEXT = """\
+# 🔧 管理员命令
+
+| 命令 | 别名 | 说明 |
+|------|------|------|
+| `更改游戏 群 舞萌/中二` | — | 设置群默认查询游戏 |
+| `更改查分器 水鱼/落雪` | `切换查分器` | 切换舞萌查分器 |
+| `更改别名源 <游戏> <数据源>` | `切换别名源` | 切换别名数据源 |
+| `gametoggle` | `开启/关闭功能` | 群功能开关 |
+| `maiguesstoggle` | `开启/关闭猜歌` | 群猜歌开关 |
+| `aliastoggle` | `开启/关闭别名推送` | 群别名推送开关 |
+| `maiupdate` | `更新maimai数据` | 刷新 maimai 曲库 |
+| `aliasupdate` | `更新别名库` | 刷新别名库 |
+"""
+
+
+async def help_handler(
+    event: AstrMessageEvent,
+    current_game: str = "maimai",
+    group_game: str | None = None,
+):
+    yield event.make_result().use_markdown(True).message(
+        build_help_text(current_game, group_game)
+    )
+
+
+async def admin_help_handler(event: AstrMessageEvent):
+    yield event.make_result().use_markdown(True).message(ADMIN_HELP_TEXT)
