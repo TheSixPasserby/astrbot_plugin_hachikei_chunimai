@@ -194,7 +194,10 @@ class ChuDataManager:
         return results
 
     def find_by_id(self, song_id: int | str) -> ChuSong | None:
-        return self.songs.get(int(song_id))
+        try:
+            return self.songs.get(int(song_id))
+        except (ValueError, TypeError):
+            return None
 
     def random_song(self, level: str | None = None) -> ChuSong | None:
         candidates = [s for s in self.songs.values() if not s.disabled]
