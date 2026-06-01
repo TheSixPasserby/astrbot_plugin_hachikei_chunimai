@@ -167,10 +167,8 @@ class QRSyncService:
         """用缓存的凭证同步到水鱼。"""
         arcade_id = self._identifier(credentials=arcade_creds)
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
-
         target_id = self._identifier(credentials=import_token)
         await self.client.updates(target_id, scores.scores, provider=self._divingfish_provider())
-
         return SyncResult(
             player_name="",
             rating=getattr(scores, "rating", 0) or 0,
@@ -181,15 +179,23 @@ class QRSyncService:
         """用缓存的凭证同步到落雪。"""
         arcade_id = self._identifier(credentials=arcade_creds)
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
-
         target_id = self._identifier(credentials=access_token)
         await self.client.updates(target_id, scores.scores, provider=self._lxns_provider())
-
         return SyncResult(
             player_name="",
             rating=getattr(scores, "rating", 0) or 0,
             score_count=len(scores.scores),
         )
+
+    async def sync_to_divingfish(self, sgid: str, import_token: str) -> SyncResult:
+        """用 SGID 直接同步到水鱼。"""
+        creds = await self.get_arcade_credentials(sgid)
+        return await self.sync_creds_to_divingfish(creds["credentials"], import_token)
+
+    async def sync_to_lxns(self, sgid: str, access_token: str) -> SyncResult:
+        """用 SGID 直接同步到落雪。"""
+        creds = await self.get_arcade_credentials(sgid)
+        return await self.sync_creds_to_lxns(creds["credentials"], access_token)
 
     async def close(self) -> None:
         if self._client:

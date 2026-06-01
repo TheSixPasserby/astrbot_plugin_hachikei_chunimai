@@ -84,8 +84,8 @@ class MaiChuPlugin(Star):
         self._pending_oauth: dict[str, float] = {}
         # token 失效的用户（插件重载时检测）
         self._expired_tokens: set[str] = set()
-        # 街机凭证缓存: {user_key: (credentials, expire_timestamp, player_name)}
-        self._bound_arcade: dict[str, tuple[str, float, str]] = {}
+        # 同步数据等待状态: {user_key: (prober, expire_timestamp)}
+        self._pending_sync: dict[str, tuple[str, float]] = {}
 
         # 管理员 ID
         self.admin_ids: list[str] = []
@@ -1034,56 +1034,16 @@ class MaiChuPlugin(Star):
             yield r
 
     # ================================================================
-    # SGWCMAID 二维码绑定 + 同步
+    # 同步数据（先发命令，再发二维码）
     # ================================================================
-
-    async def _handle_bind_arcade(self, event: AstrMessageEvent, sgid: str) -> None:
-        """绑定街机账号：用 SGID 换取凭证，缓存 10 分钟。"""
-        from .qr_sync import extract_sgid
-
-        if not sgid:
-            sgid = extract_sgid(event.get_message_str()) or ""
-        if not sgid:
-            yield self._message("用法：绑定 SGWCMAID...")
-            return
-
-        err = self._qr_sync.validate_sgid(sgid)
-        if err:
-            yield self._message(f"❌ {err}")
-            return
-
-        yield self._message("🎮 正在绑定游戏账号...")
-
-        try:
-            creds = await self._qr_sync.get_arcade_credentials(sgid)
-            name = creds.get("player_name", "")
-            expire = time.time() + 10 * 60
-            user_key = self._user_key(event)
-            self._bound_arcade[user_key] = (creds["credentials"], expire, name)
-            display = f"（{name}）" if name else ""
-            yield self._message(
-                f"✅ 游戏账号绑定成功{display}！10 分钟内发送「同步数据 水鱼」或「同步数据 落雪」同步成绩。"
-            )
-        except Exception as e:
-            err_msg = self._qr_sync.describe_error(e)
-            logger.exception("街机绑定失败")
-            yield self._message(f"❌ {err_msg}")
 
     @command("syncdata", alias={"同步数据"})
     async def _sync_data(self, event: AstrMessageEvent):
         """同步街机数据到查分器。用法：同步数据 水鱼/落雪"""
-        user_key = self._user_key(event)
-        bound = self._bound_arcade.get(user_key)
-        if not bound or time.time() > bound[1]:
-            self._bound_arcade.pop(user_key, None)
-            yield self._message(
-                "⚠️ 未绑定游戏账号或已过期，请先发送「绑定 SGWCMAID...」绑定。"
-            )
-            return
-
         args = event.get_message_str().strip().split(maxsplit=1)
         target = args[1].strip().lower() if len(args) > 1 else ""
 
+        user_key = self._user_key(event)
         lxns_token = self._get_lxns_token(event)
         df_token = self.user_store.get_divingfish_token(user_key)
 
@@ -1092,37 +1052,77 @@ class MaiChuPlugin(Star):
                 yield self._message("⚠️ 未绑定水鱼查分器，请先发送「绑定水鱼 <Token>」。")
                 return
             prober = "divingfish"
+            label = "水鱼"
         elif target in ("落雪", "lxns"):
             if not lxns_token:
                 yield self._message("⚠️ 未绑定落雪查分器，请先发送「绑定落雪」。")
                 return
             prober = "lxns"
+            label = "落雪"
         else:
             yield self._message("用法：同步数据 水鱼/落雪")
             return
 
-        arcade_creds, _, _ = bound
+        self._pending_sync[user_key] = (prober, time.time() + 3 * 60)
+        yield self._message(
+            f"🔗 请在 **3 分钟内** 发送街机二维码（SGWCMAID...），将同步到{label}查分器。"
+        )
+
+        # 3 分钟超时提醒
+        async def _timeout():
+            await asyncio.sleep(3 * 60)
+            if self._pending_sync.pop(user_key, None):
+                try:
+                    result = event.make_result().message("⏰ 同步超时，请重新发送「同步数据 水鱼/落雪」。")
+                    await event.send(result)
+                except Exception:
+                    pass
+        asyncio.create_task(_timeout())
+
+    async def _try_sync_sgid(self, event: AstrMessageEvent, sgid: str):
+        """等待中的同步：收到 SGID 后执行同步。"""
+        from .qr_sync import extract_sgid
+
+        if not sgid:
+            sgid = extract_sgid(event.get_message_str()) or ""
+        if not sgid:
+            return
+
+        user_key = self._user_key(event)
+        pending = self._pending_sync.get(user_key)
+        if not pending or time.time() > pending[1]:
+            self._pending_sync.pop(user_key, None)
+            return
+
+        err = self._qr_sync.validate_sgid(sgid)
+        if err:
+            yield self._message(f"❌ {err}")
+            return
+
+        prober = pending[0]
+        del self._pending_sync[user_key]
+
+        lxns_token = self._get_lxns_token(event)
+        df_token = self.user_store.get_divingfish_token(user_key)
         label = "水鱼" if prober == "divingfish" else "落雪"
+
         yield self._message(f"🎮 正在同步成绩到{label}，请稍候...")
 
         try:
             if prober == "lxns":
-                result = await self._qr_sync.sync_creds_to_lxns(arcade_creds, lxns_token)
+                result = await self._qr_sync.sync_to_lxns(sgid, lxns_token)
             else:
-                result = await self._qr_sync.sync_creds_to_divingfish(arcade_creds, df_token)
+                result = await self._qr_sync.sync_to_divingfish(sgid, df_token)
 
             lines = [
                 f"✅ 同步成功！",
-                f"  玩家: {result.player_name or bound[2] or '未知'}",
+                f"  玩家: {result.player_name or '未知'}",
                 f"  Rating: {result.rating}",
                 f"  同步曲数: {result.score_count}",
             ]
             if result.warning:
                 lines.append(f"  ⚠️ {result.warning}")
             yield self._message("\n".join(lines))
-
-            # 同步成功后清除缓存（一次性使用）
-            self._bound_arcade.pop(user_key, None)
 
         except Exception as e:
             err_msg = self._qr_sync.describe_error(e)
@@ -1147,12 +1147,12 @@ class MaiChuPlugin(Star):
 
         text = event.get_message_str().strip()
 
-        # 绑定 SGWCMAID...（街机账号绑定）
-        if self._qr_sync and text.upper().startswith("绑定") and "SGWCMAID" in text.upper():
+        # 同步数据等待中的 SGWCMAID 检测
+        if self._qr_sync and self._pending_sync.get(self._user_key(event)) and "SGWCMAID" in text.upper():
             from .qr_sync import extract_sgid
             sgid = extract_sgid(text)
             if sgid:
-                async for r in self._handle_bind_arcade(event, sgid):
+                async for r in self._try_sync_sgid(event, sgid):
                     yield r
                 return
 
