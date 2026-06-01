@@ -60,6 +60,20 @@
     "description": "KOOK Bot Token",
     "hint": "用于在 KOOK 平台撤回敏感消息（留空则不撤回）"
   },
+  "mai_alias_source": {
+    "type": "string",
+    "default": "yuzuchan",
+    "description": "舞萌别名数据源",
+    "hint": "yuzuchan = 柚子查分器, lxns = 落雪咖啡屋",
+    "options": ["yuzuchan", "lxns"]
+  },
+  "chu_alias_source": {
+    "type": "string",
+    "default": "lxns",
+    "description": "中二别名数据源",
+    "hint": "目前仅支持落雪",
+    "options": ["lxns"]
+  },
   "lxns_dev_key": {
     "type": "string",
     "default": "",

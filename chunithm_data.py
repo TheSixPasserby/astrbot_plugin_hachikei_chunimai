@@ -164,8 +164,9 @@ class ChuDataManager:
         try:
             data = await self.lxns.chu_alias_list()
             await self._write_json("aliases.json", data)
-        except Exception:
-            logger.warning("从 Lxns 获取 CHUNITHM 别名失败，尝试本地缓存")
+            logger.info("从落雪获取 CHUNITHM 别名成功")
+        except Exception as e:
+            logger.warning(f"从落雪获取 CHUNITHM 别名失败: {e}，尝试本地缓存")
             data = await self._read_json("aliases.json")
             if not data:
                 return

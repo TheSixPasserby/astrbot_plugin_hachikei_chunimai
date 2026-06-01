@@ -255,6 +255,8 @@ class MusicDataManager:
 
     def __init__(self, api: MaimaiAPI, data_dir: Path) -> None:
         self.api = api
+        self._lxns: Any = None  # 可选：LxnsAPI 实例
+        self._alias_source: str = "yuzuchan"  # yuzuchan | lxns
         self._data_dir = data_dir
         self._static_dir = data_dir / "static"
         self._static_dir.mkdir(parents=True, exist_ok=True)
@@ -321,19 +323,34 @@ class MusicDataManager:
         self.level_data = music_by_level_list(self.music_list)
         logger.info(f"加载了 {len(self.music_list)} 首歌曲")
 
+    def configure_alias(self, source: str = "yuzuchan", lxns: Any = None) -> None:
+        """设置别名数据源。"""
+        self._alias_source = source
+        self._lxns = lxns
+
     async def load_alias_data(self) -> None:
         """加载别名数据。"""
         local_alias = await self._read_json("local_alias.json") or {}
 
-        try:
-            raw_alias = await self.api.get_alias()
-            await self._write_json("music_alias.json", raw_alias)
-        except Exception:
-            logger.warning("从 API 获取别名失败，尝试本地缓存")
-            raw_alias = await self._read_json("music_alias.json")
-            if raw_alias is None:
-                logger.error("无本地别名缓存")
-                raw_alias = []
+        raw_alias: list = []
+        if self._alias_source == "lxns" and self._lxns:
+            try:
+                data = await self._lxns.mai_alias_list()
+                for entry in data.get("aliases", []):
+                    sid = str(entry.get("song_id", ""))
+                    raw_alias.append({"SongID": sid, "Name": "", "Alias": entry.get("aliases", [])})
+                await self._write_json("music_alias.json", raw_alias)
+                logger.info("从落雪获取舞萌别名成功")
+            except Exception as e:
+                logger.warning(f"从落雪获取舞萌别名失败: {e}，尝试本地缓存")
+                raw_alias = await self._read_json("music_alias.json") or []
+        else:
+            try:
+                raw_alias = await self.api.get_alias()
+                await self._write_json("music_alias.json", raw_alias)
+            except Exception:
+                logger.warning("从柚子获取别名失败，尝试本地缓存")
+                raw_alias = await self._read_json("music_alias.json") or []
 
         self.alias_list = AliasList()
         for a in raw_alias:

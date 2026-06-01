@@ -125,8 +125,16 @@ class LxnsAPI:
         return await self._get(f"/maimai/song/{song_id}")
 
     async def mai_alias_list(self) -> dict:
-        """获取别名列表。返回 {aliases[]}"""
-        return await self._get("/maimai/alias/list")
+        """获取别名列表（公共 API）。返回 {aliases[]}"""
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/maimai/alias/list"
+        async with session.get(url) as res:
+            data = await res.json()
+            if isinstance(data, dict) and "aliases" in data:
+                return data
+            if not data.get("success"):
+                raise ServerError(f"落雪舞萌别名API: {data.get('message', '未知错误')}")
+            return data.get("data", data)
 
     # ================================================================
     # CHUNITHM（开发者 API）
@@ -183,8 +191,16 @@ class LxnsAPI:
         return await self._get(f"/chunithm/song/{song_id}")
 
     async def chu_alias_list(self) -> dict:
-        """获取别名列表。返回 {aliases[]}"""
-        return await self._get("/chunithm/alias/list")
+        """获取别名列表（公共 API）。返回 {aliases[]}"""
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/chunithm/alias/list"
+        async with session.get(url) as res:
+            data = await res.json()
+            if isinstance(data, dict) and "aliases" in data:
+                return data
+            if not data.get("success"):
+                raise ServerError(f"落雪CHUNITHM别名API: {data.get('message', '未知错误')}")
+            return data.get("data", data)
 
     # ================================================================
     # 游戏资源 URL

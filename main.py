@@ -105,15 +105,20 @@ class MaimaiPlugin(Star):
         proxy = bool(self.config.get("maimai_http_proxy", ""))
         self.api.configure(token=token, proxy=proxy)
 
+        # Lxns
+        lxns_key = self.config.get("lxns_dev_key", "")
+        lxns_token = self.config.get("lxns_user_token", "")
+        self.lxns.configure(dev_key=lxns_key, user_token=lxns_token)
+
+        # 配置舞萌别名数据源
+        mai_alias_src = self.config.get("mai_alias_source", "yuzuchan")
+        self.music_data.configure_alias(source=mai_alias_src, lxns=self.lxns)
+
         try:
             await self.music_data.load_all()
         except Exception as e:
             logger.error(f"加载歌曲数据失败: {e}")
 
-        # Lxns + CHUNITHM
-        lxns_key = self.config.get("lxns_dev_key", "")
-        lxns_token = self.config.get("lxns_user_token", "")
-        self.lxns.configure(dev_key=lxns_key, user_token=lxns_token)
         try:
             await self.chu_data.load_all()
         except Exception as e:
@@ -398,6 +403,65 @@ class MaimaiPlugin(Star):
         await self.group_store.toggle_group(group_id, enable)
         status = "开启" if enable else "关闭"
         yield self._message(f"✅ 群功能已{status}。")
+
+    # ================================================================
+    # 别名数据源切换
+    # ================================================================
+
+    @command("switchalias", alias={"更改别名源", "切换别名源"})
+    async def _switch_alias_source(self, event: AstrMessageEvent):
+        if not self._is_admin(event):
+            yield self._message("需要管理员权限。")
+            return
+        text = event.get_message_str().strip()
+        # 解析: 更改别名源 舞萌/中二 水鱼/落雪
+        import re
+        m = re.search(r"(舞萌|maimai|中二|chunithm)\s*(水鱼|yuzuchan|落雪|lxns)", text, re.IGNORECASE)
+        if not m:
+            yield self._message(
+                "用法：更改别名源 <游戏> <数据源>\n"
+                "游戏：舞萌 / 中二\n"
+                "数据源：水鱼 / 落雪\n"
+                "例如：更改别名源 舞萌 落雪"
+            )
+            return
+
+        game_raw = m.group(1).lower()
+        source_raw = m.group(2).lower()
+
+        game = "maimai" if game_raw in ("舞萌", "maimai") else "chunithm"
+        source = "lxns" if source_raw in ("落雪", "lxns") else "yuzuchan"
+
+        if game == "chunithm" and source == "yuzuchan":
+            yield self._message("中二节奏暂不支持柚子别名源，请使用落雪。")
+            return
+
+        # 保存配置
+        key = "mai_alias_source" if game == "maimai" else "chu_alias_source"
+        self.config[key] = source
+        try:
+            self.context.save_config()
+        except Exception:
+            pass
+
+        # 重新加载别名
+        label = "舞萌" if game == "maimai" else "中二"
+        src_label = "落雪" if source == "lxns" else "柚子"
+        yield self._message(f"🔄 正在从{src_label}重新加载{label}别名数据...")
+
+        if game == "maimai":
+            self.music_data.configure_alias(source=source, lxns=self.lxns)
+            try:
+                await self.music_data.load_alias_data()
+                yield self._message(f"✅ {label}别名源已切换为 {src_label}，共 {len(self.music_data.alias_list)} 条。")
+            except Exception as e:
+                yield self._message(f"❌ 加载别名失败：{e}")
+        else:
+            try:
+                await self.chu_data.load_aliases()
+                yield self._message(f"✅ {label}别名源已切换为 {src_label}，共 {len(self.chu_data.aliases)} 条。")
+            except Exception as e:
+                yield self._message(f"❌ 加载别名失败：{e}")
 
     # ================================================================
     # 更新数据
