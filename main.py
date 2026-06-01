@@ -370,12 +370,23 @@ class MaiChuPlugin(Star):
         )
 
         user_key = self._user_key(event)
-        self._pending_oauth[user_key] = time.time() + 15 * 60
+        self._pending_oauth[user_key] = time.time() + 5 * 60
 
         yield self._message(
             f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
-            f"授权后页面会显示一串密钥，请在 **15 分钟内** 直接发送到聊天窗口即可。"
+            f"授权后页面会显示一串密钥，请在 **5 分钟内** 直接发送到聊天窗口即可。"
         )
+
+        # 5 分钟超时提醒
+        async def _timeout():
+            await asyncio.sleep(5 * 60)
+            if self._pending_oauth.pop(user_key, None):
+                try:
+                    result = event.make_result().message("⏰ 落雪绑定超时，请重新发送 `绑定落雪` 获取新链接。")
+                    await event.send(result)
+                except Exception:
+                    pass
+        asyncio.create_task(_timeout())
 
     async def _try_oauth_code(self, event: AstrMessageEvent) -> bool:
         """检测用户是否在等待发送 OAuth 密钥。如果是，尝试交换并返回 True。"""
