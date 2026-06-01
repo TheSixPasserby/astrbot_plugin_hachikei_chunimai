@@ -427,6 +427,7 @@ class MaimaiPlugin(Star):
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
         prober = self._get_prober(event, "maimai")
+        yield self._message("🎮 正在为 [maimai DX] 生成 B50，请稍候...")
         if prober == "lxns":
             async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
                 yield r
@@ -443,6 +444,7 @@ class MaimaiPlugin(Star):
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
         prober = self._get_prober(event, "maimai")
+        yield self._message("🎮 正在为 [maimai DX] 查询歌曲成绩，请稍候...")
         if prober == "lxns":
             async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq):
                 yield r
@@ -469,7 +471,7 @@ class MaimaiPlugin(Star):
     # CHUNITHM 专属命令 — 带 chu 前缀直接执行，不检测游戏模式
     # ================================================================
 
-    @command("chub30")
+    @command("b30", alias={"chub30"})
     async def _chu_b30(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
@@ -477,6 +479,7 @@ class MaimaiPlugin(Star):
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
+        yield self._message("🎮 正在为 [CHUNITHM] 生成 B30，请稍候...")
         async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
             yield r
 
@@ -488,6 +491,7 @@ class MaimaiPlugin(Star):
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
+        yield self._message("🎮 正在为 [CHUNITHM] 查询歌曲成绩，请稍候...")
         async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
             yield r
 
