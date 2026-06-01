@@ -57,7 +57,7 @@ async def lxns_mai_b50_handler(
 
         # 构建歌曲定数查找表：{(song_id, difficulty): level_value}
         ds_map: dict[tuple[int, int], float] = {}
-        # 1. 从落雪 API 获取（权威数据源），重试一次
+        # 1. 从落雪公共 API 获取，重试一次
         for attempt in range(2):
             try:
                 song_data = await asyncio.wait_for(lxns.mai_song_list(), timeout=30)
@@ -105,7 +105,7 @@ async def lxns_mai_b50_handler(
 
         if not player and qq and lxns._dev_key:
             try:
-                player = await asyncio.wait_for(lxns.mai_player_by_qq(qq), timeout=10)
+                player = await asyncio.wait_for(lxns.mai_player_by_qq(qq), timeout=15)
                 friend_code = player.get("friend_code")
             except Exception:
                 pass

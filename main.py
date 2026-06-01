@@ -430,23 +430,7 @@ class MaimaiPlugin(Star):
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
         label = GAME_LABELS.get(game, game)
-        table = self._table_name(game)
-
-        # 发送"正在生成"提示
-        gen_msg_id = None
-        try:
-            await event.send(event.plain_result(f"🎮 正在为 [{label}] 生成 {table}，请稍候..."))
-            # 从 adapter 缓存中获取刚发送消息的 ID
-            try:
-                adapter = self.context.get_platform_inst(event.get_platform_id())
-                if adapter:
-                    gen_msg_id = adapter._session_last_message_id.get(event.session_id)
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-        # 生成并发送分表
+        yield self._message(f"🎮 正在为 [{label}] 生成 {self._table_name(game)}，请稍候...")
         if game == "chunithm":
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
@@ -457,23 +441,14 @@ class MaimaiPlugin(Star):
             async for r in b50_handler(event, self.api, self.music_data, qq=qq):
                 yield r
 
-        # 撤回"正在生成"提示
-        if gen_msg_id:
-            try:
-                adapter = self.context.get_platform_inst(event.get_platform_id())
-                if adapter and hasattr(adapter, "client"):
-                    group_id = self._group_id(event)
-                    if group_id:
-                        await adapter.client.delete_message(group_openid=group_id, message_id=gen_msg_id)
-            except Exception:
-                pass
-
     async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
         """统一 minfo 路由。"""
         qq = self._require_qq(event)
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
+        label = GAME_LABELS.get(game, game)
+        yield self._message(f"🎮 正在为 [{label}] 查询歌曲成绩，请稍候...")
         if game == "chunithm":
             async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
