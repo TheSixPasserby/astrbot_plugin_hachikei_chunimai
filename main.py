@@ -144,6 +144,11 @@ class MaimaiPlugin(Star):
     def _user_key(event: AstrMessageEvent) -> str:
         return f"{event.get_platform_name()}:{event.get_sender_id()}"
 
+    @staticmethod
+    def _table_name(game: str) -> str:
+        """根据游戏返回表格名称：maimai -> B50, chunithm -> B30"""
+        return "B30" if game == "chunithm" else "B50"
+
     def _group_id(self, event: AstrMessageEvent) -> str:
         """跨平台获取群/频道 ID。"""
         # 1. 标准方法
@@ -427,7 +432,7 @@ class MaimaiPlugin(Star):
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
         prober = self._get_prober(event, "maimai")
-        yield self._message("🎮 正在为 [maimai DX] 生成 B50，请稍候...")
+        yield self._message(f"🎮 正在为 [maimai DX] 生成 {self._table_name('maimai')}，请稍候...")
         if prober == "lxns":
             async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq):
                 yield r
@@ -479,7 +484,7 @@ class MaimaiPlugin(Star):
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `bindqq <你的QQ号>` 绑定。")
             return
-        yield self._message("🎮 正在为 [CHUNITHM] 生成 B30，请稍候...")
+        yield self._message(f"🎮 正在为 [CHUNITHM] 生成 {self._table_name('chunithm')}，请稍候...")
         async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
             yield r
 
@@ -524,7 +529,8 @@ class MaimaiPlugin(Star):
         game = self._resolve_game(event)
         prober = self._get_prober(event, game)
         label = GAME_LABELS.get(game, game)
-        yield self._message(f"🎮 正在为 [{label}] 生成 B50/B30，请稍候...")
+        table_name = "B30" if game == "chunithm" else "B50"
+        yield self._message(f"🎮 正在为 [{label}] 生成 {table_name}，请稍候...")
         if game == "chunithm":
             async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                 yield r
