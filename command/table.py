@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..music_data import MusicDataManager, achievements_label, LEVEL_LIST, music_by_plan
+from ..music_data import MusicDataManager, achievements_label, LEVEL_LIST, DIFF_INDEX_TO_LABEL, music_by_plan
 
 try:
     from astrbot.api import logger
@@ -279,7 +279,7 @@ async def level_progress_handler(
         lines = [f"📊 {level} {rank_str.upper()} 进度 (第{page}页)"]
         start = (page - 1) * 30
         for music, idx, ach in results[start:start + 30]:
-            label = diff_index_to_label.get(idx, str(idx))
+            label = DIFF_INDEX_TO_LABEL.get(idx, str(idx))
             status = achievements_label(ach) if ach > 0 else "未游玩"
             lines.append(f"  [{label}] {music.title}: {ach:.4f}% ({status})")
 

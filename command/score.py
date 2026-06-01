@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, MusicNotPlayError, describe_error
 from ..models import UserInfo
-from ..music_data import MusicDataManager, achievements_label, diff_index_to_label
+from ..music_data import MusicDataManager, achievements_label, DIFF_INDEX_TO_LABEL
 from ..utils import fmt_fc as _fmt_fc, fmt_rate as _fmt_rate
 from ..image_utils import pie_chart, image_to_base64
 
@@ -138,7 +138,7 @@ async def minfo_handler(
 
         lines = [f"🎵 {music.title} (ID:{music.id})"]
         for r in records:
-            label = diff_index_to_label.get(r.level_index, "?")
+            label = DIFF_INDEX_TO_LABEL.get(r.level_index, "?")
             fc = r.fc.upper() if r.fc else "-"
             fs = r.fs.upper() if r.fs else "-"
             lines.append(
@@ -194,7 +194,7 @@ async def ginfo_handler(
                 return
 
         if diff_idx >= len(music.level):
-            yield event.plain_result(f"该歌曲没有 {diff_index_to_label.get(diff_idx, str(diff_idx))} 难度。")
+            yield event.plain_result(f"该歌曲没有 {DIFF_INDEX_TO_LABEL.get(diff_idx, str(diff_idx))} 难度。")
             return
 
         stats = music.stats[diff_idx] if music.stats and diff_idx < len(music.stats) else None
@@ -202,7 +202,7 @@ async def ginfo_handler(
             yield event.plain_result("暂无该难度的统计数据。")
             return
 
-        label = diff_index_to_label.get(diff_idx, str(diff_idx))
+        label = DIFF_INDEX_TO_LABEL.get(diff_idx, str(diff_idx))
         lines = [
             f"📊 {music.title} [{label}] 全球统计",
             f"游玩次数: {stats.cnt:.0f}" if stats.cnt else "游玩次数: N/A",
@@ -300,7 +300,7 @@ async def score_line_handler(
 
         max_great = int(gap / (per_note * 0.5))
 
-        label = diff_index_to_label.get(diff_idx, str(diff_idx))
+        label = DIFF_INDEX_TO_LABEL.get(diff_idx, str(diff_idx))
         yield event.plain_result(
             f"🎵 {music.title} [{label}]\n"
             f"目标: {target}%\n"

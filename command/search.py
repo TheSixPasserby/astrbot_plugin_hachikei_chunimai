@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..music_data import MusicDataManager, diff_index_to_label
+from ..music_data import MusicDataManager, DIFF_INDEX_TO_LABEL
 
 try:
     from astrbot.api import logger
@@ -92,7 +92,7 @@ async def search_base_handler(
         for music in data_mgr.music_list:
             for i, ds in enumerate(music.ds):
                 if low <= ds <= high:
-                    label = diff_index_to_label.get(i, str(i))
+                    label = DIFF_INDEX_TO_LABEL.get(i, str(i))
                     results.append((ds, f"{music.id}. [{label}] {music.title}"))
 
         results.sort(key=lambda x: x[0])
@@ -199,7 +199,7 @@ async def search_charter_handler(
         for music in data_mgr.music_list:
             for i, chart in enumerate(music.charts):
                 if keyword in chart.charter.lower():
-                    label = diff_index_to_label.get(i, str(i))
+                    label = DIFF_INDEX_TO_LABEL.get(i, str(i))
                     results.append(f"{music.id}. [{label}] {music.title} — {chart.charter}")
 
         if not results:
