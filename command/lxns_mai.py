@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
@@ -57,27 +55,19 @@ async def lxns_mai_b50_handler(
 
         # 构建歌曲定数查找表：{(song_id, difficulty): level_value}
         ds_map: dict[tuple[int, int], float] = {}
-        # 1. 从落雪公共 API 获取，重试一次
-        for attempt in range(2):
-            try:
-                song_data = await asyncio.wait_for(lxns.mai_song_list(), timeout=30)
-                for s in song_data.get("songs", []):
-                    sid = int(s["id"])
-                    for diff in s.get("difficulties", {}).get("standard", []):
-                        ds_map[(sid, diff["difficulty"])] = diff["level_value"]
-                    for diff in s.get("difficulties", {}).get("dx", []):
-                        ds_map[(sid, diff["difficulty"])] = diff["level_value"]
-                logger.info(f"落雪歌曲定数加载: {len(ds_map)} 条")
-                break
-            except asyncio.TimeoutError:
-                logger.warning(f"落雪歌曲数据加载超时 (第{attempt + 1}次)")
-                if attempt == 0:
-                    continue
-                yield event.plain_result("⚠️ 落雪歌曲数据加载超时，将使用本地数据。")
-            except Exception as e:
-                logger.warning(f"落雪歌曲数据加载失败: {e}")
-                yield event.plain_result("⚠️ 从落雪获取定数信息失败，将使用本地数据。")
-                break
+        # 1. 从落雪 API 获取（权威数据源）
+        try:
+            song_data = await lxns.mai_song_list()
+            for s in song_data.get("songs", []):
+                sid = int(s["id"])
+                for diff in s.get("difficulties", {}).get("standard", []):
+                    ds_map[(sid, diff["difficulty"])] = diff["level_value"]
+                for diff in s.get("difficulties", {}).get("dx", []):
+                    ds_map[(sid, diff["difficulty"])] = diff["level_value"]
+            logger.info(f"落雪歌曲定数加载: {len(ds_map)} 条")
+        except Exception as e:
+            logger.warning(f"落雪歌曲数据加载失败: {e}")
+            yield event.plain_result("⚠️ 从落雪获取定数信息失败，将使用本地数据（部分歌曲定数可能缺失）。")
         # 2. 从本地 DivingFish 数据补充（ID 映射：水鱼5位=落雪4位+10000）
         if music_data:
             for m in music_data.music_list:
@@ -97,19 +87,16 @@ async def lxns_mai_b50_handler(
 
         if lxns._user_token:
             try:
-                player = await asyncio.wait_for(lxns.mai_user_player(), timeout=30)
+                player = await lxns.mai_user_player()
                 friend_code = player.get("friend_code")
                 use_personal = True
-            except Exception as e:
-                logger.warning(f"落雪个人API获取玩家失败: {e}")
-
-        if not player and qq and lxns._dev_key:
-            try:
-                player = await asyncio.wait_for(lxns.mai_player_by_qq(qq), timeout=15)
-                friend_code = player.get("friend_code")
             except Exception:
                 pass
-        if not player and query and query.isdigit():
+
+        if not player and qq:
+            player = await lxns.mai_player_by_qq(qq)
+            friend_code = player.get("friend_code")
+        elif not player and query and query.isdigit():
             friend_code = int(query)
             player = await lxns.mai_player_by_fc(friend_code)
 
