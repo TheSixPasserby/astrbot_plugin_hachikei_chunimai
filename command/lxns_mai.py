@@ -175,15 +175,24 @@ async def lxns_mai_minfo_handler(
             return
 
         # 获取单曲成绩
-        params = {}
-        if query.isdigit():
-            params["song_id"] = int(query)
-        else:
-            params["song_name"] = query
-
         if use_personal:
-            score = await lxns._user_get("/user/maimai/player/best", params=params)
+            # 个人 API 无单曲查询端点，从全量成绩中筛选
+            all_scores = await lxns.mai_user_scores()
+            if query.isdigit():
+                target_id = int(query)
+                score = next((s for s in all_scores if s.get("id") == target_id), None)
+            else:
+                q = query.lower()
+                score = next((s for s in all_scores if q in s.get("song_name", "").lower()), None)
+            if not score:
+                yield event.plain_result(f"未找到歌曲「{query}」的成绩记录。")
+                return
         else:
+            params = {}
+            if query.isdigit():
+                params["song_id"] = int(query)
+            else:
+                params["song_name"] = query
             score = await lxns.mai_best(fc, **params)
 
         fc_label = score.get("fc", "") or "-"

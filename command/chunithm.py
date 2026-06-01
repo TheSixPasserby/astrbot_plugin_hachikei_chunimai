@@ -199,7 +199,12 @@ async def chu_minfo_handler(
 
         # 获取成绩：优先个人 API
         if use_personal:
-            score = await lxns._user_get("/user/chunithm/player/best", params={"song_id": song.id})
+            # 个人 API 无单曲查询端点，从全量成绩中筛选
+            all_scores = await lxns.chu_user_scores()
+            score = next((s for s in all_scores if s.get("id") == song.id), None)
+            if not score:
+                yield event.plain_result(f"未找到「{song.title}」的成绩记录。")
+                return
         else:
             score = await lxns.chu_best(fc, song_id=song.id)
 
