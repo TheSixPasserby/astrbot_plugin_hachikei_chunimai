@@ -57,35 +57,24 @@ def chu_rank_label(score: int) -> str:
 
 
 def chu_rating(level_value: float, score: int) -> float:
-    """计算 CHUNITHM 单曲 Rating。"""
-    if score >= 1007500:
+    """计算 CHUNITHM 单曲 Rating（来源: chunithm-eng.net）。"""
+    if score > 1007500:
         return level_value + 2.0
-    if score >= 1005000:
-        return level_value + 1.5 + (score - 1000000) / 10000 * 0.5
-    if score >= 1000000:
-        return level_value + 1.5
-    if score >= 990000:
-        return level_value + 1.0 + (score - 990000) / 10000 * 0.5
-    if score >= 975000:
-        return level_value + 0.5 + (score - 975000) / 15000 * 0.5
-    if score >= 950000:
-        return level_value + (score - 950000) / 25000 * 0.5
-    if score >= 925000:
-        return level_value - 1.0 + (score - 925000) / 25000 * 1.0
-    if score >= 900000:
-        return level_value - 3.0 + (score - 900000) / 25000 * 2.0
-    if score >= 800000:
-        return level_value - 5.0 + (score - 800000) / 100000 * 2.0
-    if score >= 700000:
-        return max(level_value - 7.0 + (score - 700000) / 100000 * 2.0, 0)
-    if score >= 600000:
-        return max(level_value - 9.0 + (score - 600000) / 100000 * 2.0, 0)
-    if score >= 500000:
-        return max(level_value - 11.0 + (score - 500000) / 100000 * 2.0, 0)
-    if score >= 400000:
-        return max(level_value - 13.0 + (score - 400000) / 100000 * 2.0, 0)
-    if score >= 300000:
-        return max(level_value - 15.0 + (score - 300000) / 100000 * 2.0, 0)
+    if score > 1005000:
+        return level_value + 1.5 + (score - 1005000) / 2500 * 0.5
+    if score > 1000000:
+        return level_value + 1.0 + (score - 1000000) / 5000 * 0.5
+    if score > 975000:
+        return level_value + (score - 975000) / 25000 * 1.0
+    if score > 925000:
+        return level_value - 3.0 + (score - 925000) / 50000 * 3.0
+    if score > 900000:
+        return level_value - 5.0 + (score - 900000) / 25000 * 2.0
+    if score > 800000:
+        half = (level_value - 5) / 2
+        return half + (score - 800000) / 100000 * (level_value - 5 - half)
+    if score > 500000:
+        return (score - 500000) / 300000 * (level_value - 5) / 2
     return 0.0
 
 
