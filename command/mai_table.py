@@ -40,20 +40,28 @@ async def mai_rating_table_handler(
         yield event.plain_result(f"没有 {level} 等级的歌曲。")
         return
 
-    lines = [f"📋 {level} 定数表"]
+    lines = [f"# 📋 {level} 定数表\n"]
     by_ds: dict[float, list[str]] = {}
     for mid, info in plan.items():
         if isinstance(info, dict):
             for idx, rm in info.items():
-                by_ds.setdefault(rm.ds, []).append(f"  {rm.id}. {data_mgr.music_list.by_id(rm.id).title if data_mgr.music_list.by_id(rm.id) else rm.id}")
+                music = data_mgr.music_list.by_id(rm.id)
+                title = music.title if music else str(rm.id)
+                by_ds.setdefault(rm.ds, []).append(f"| {rm.id} | {title} |")
         else:
-            by_ds.setdefault(info.ds, []).append(f"  {info.id}. {data_mgr.music_list.by_id(info.id).title if data_mgr.music_list.by_id(info.id) else info.id}")
+            music = data_mgr.music_list.by_id(info.id)
+            title = music.title if music else str(info.id)
+            by_ds.setdefault(info.ds, []).append(f"| {info.id} | {title} |")
 
     for ds in sorted(by_ds.keys()):
-        lines.append(f"\n【{ds}】")
-        lines.extend(by_ds[ds])
+        songs = by_ds[ds]
+        lines.append(f"## {ds}（{len(songs)}首）\n")
+        lines.append("| ID | 曲名 |")
+        lines.append("|-----|------|")
+        lines.extend(songs)
+        lines.append("")
 
-    yield event.plain_result("\n".join(lines))
+    yield event.make_result().use_markdown(True).message("\n".join(lines))
 
 
 async def mai_rise_score_handler(
@@ -78,7 +86,10 @@ async def mai_rise_score_handler(
         qq = None
         at_targets = extract_at_targets(event)
         if at_targets:
-            qq = int(at_targets[0])
+            try:
+                qq = int(at_targets[0])
+            except (ValueError, TypeError):
+                pass
 
         user_info = await api.query_user_b50(qqid=qq, username=username)
         if not user_info.charts:
@@ -182,7 +193,10 @@ async def mai_plate_progress_handler(
         qq = None
         at_targets = extract_at_targets(event)
         if at_targets:
-            qq = int(at_targets[0])
+            try:
+                qq = int(at_targets[0])
+            except (ValueError, TypeError):
+                pass
 
         records = await api.query_user_plate(qqid=qq, username=username, version=[version])
         total = len(records)
@@ -245,7 +259,10 @@ async def mai_level_progress_handler(
         qq = None
         at_targets = extract_at_targets(event)
         if at_targets:
-            qq = int(at_targets[0])
+            try:
+                qq = int(at_targets[0])
+            except (ValueError, TypeError):
+                pass
 
         user_info = await api.query_user_b50(qqid=qq, username=username)
         if not user_info.charts:
@@ -313,7 +330,10 @@ async def mai_level_achievement_list_handler(
         qq = None
         at_targets = extract_at_targets(event)
         if at_targets:
-            qq = int(at_targets[0])
+            try:
+                qq = int(at_targets[0])
+            except (ValueError, TypeError):
+                pass
 
         user_info = await api.query_user_b50(qqid=qq, username=username)
         if not user_info.charts:

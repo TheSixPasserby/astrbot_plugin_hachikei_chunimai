@@ -54,7 +54,10 @@ async def chu_b30_handler(
                 from astrbot.api.message_components import At
                 for comp in event.get_messages():
                     if isinstance(comp, At):
-                        qq = int(comp.qq)
+                        try:
+                            qq = int(comp.qq)
+                        except (ValueError, TypeError):
+                            pass
             except Exception:
                 pass
 
@@ -165,7 +168,10 @@ async def chu_minfo_handler(
                 from astrbot.api.message_components import At
                 for comp in event.get_messages():
                     if isinstance(comp, At):
-                        qq = int(comp.qq)
+                        try:
+                            qq = int(comp.qq)
+                        except (ValueError, TypeError):
+                            pass
             except Exception:
                 pass
 
