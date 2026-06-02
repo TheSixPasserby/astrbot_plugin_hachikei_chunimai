@@ -1040,7 +1040,9 @@ class MaiChuPlugin(Star):
     async def _mai_rise(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        async for r in mai_rise_score_handler(event, self.api, self.music_data):
+        lxns_token = await self._get_lxns_token(event)
+        qq = self._get_qq(event)
+        async for r in mai_rise_score_handler(event, self.api, self.music_data, lxns=self.lxns, lxns_token=lxns_token, qq=qq):
             yield r
 
     # ================================================================
@@ -1299,9 +1301,11 @@ class MaiChuPlugin(Star):
 
             # 推分
             if re.match(r"^我要在", text):
-                async for r in mai_rise_score_handler(event, self.api, self.music_data):
+                lxns_token = await self._get_lxns_token(event)
+                qq = self._get_qq(event)
+                async for r in mai_rise_score_handler(event, self.api, self.music_data, lxns=self.lxns, lxns_token=lxns_token, qq=qq):
                     yield r
-                    return
+                return
 
         # --- 共用：别名查询（按游戏路由） ---
 
