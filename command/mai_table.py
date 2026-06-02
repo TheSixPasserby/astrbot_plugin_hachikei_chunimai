@@ -40,6 +40,8 @@ async def mai_rating_table_handler(
         yield event.plain_result(f"没有 {level} 等级的歌曲。")
         return
 
+    _DIFF_NAMES = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "RE:MASTER"]
+
     lines = [f"# 📋 {level} 定数表\n"]
     by_ds: dict[float, list[str]] = {}
     for mid, info in plan.items():
@@ -47,17 +49,19 @@ async def mai_rating_table_handler(
             for idx, rm in info.items():
                 music = data_mgr.music_list.by_id(rm.id)
                 title = music.title if music else str(rm.id)
-                by_ds.setdefault(rm.ds, []).append(f"| {rm.id} | {title} |")
+                diff = _DIFF_NAMES[int(idx)] if isinstance(idx, int) and idx < len(_DIFF_NAMES) else str(idx)
+                by_ds.setdefault(rm.ds, []).append(f"| {rm.id} | {title} | {diff} |")
         else:
             music = data_mgr.music_list.by_id(info.id)
             title = music.title if music else str(info.id)
-            by_ds.setdefault(info.ds, []).append(f"| {info.id} | {title} |")
+            diff = _DIFF_NAMES[int(info.lv)] if hasattr(info, 'lv') and int(info.lv) < len(_DIFF_NAMES) else "?"
+            by_ds.setdefault(info.ds, []).append(f"| {info.id} | {title} | {diff} |")
 
     for ds in sorted(by_ds.keys()):
         songs = by_ds[ds]
         lines.append(f"## {ds}（{len(songs)}首）\n")
-        lines.append("| ID | 曲名 |")
-        lines.append("|-----|------|")
+        lines.append("| ID | 曲名 | 难度 |")
+        lines.append("|-----|------|------|")
         lines.extend(songs)
         lines.append("")
 
