@@ -136,22 +136,31 @@ class UserStore:
             return d.get("qq", "") or ""
         return ""
 
-    async def set_lxns_token(self, user_key: str, token: str) -> None:
+    async def set_lxns_token(self, user_key: str, access_token: str, refresh_token: str = "") -> None:
         """保存用户的落雪 OAuth token。"""
         async with self._lock:
             rec = self._data.setdefault(user_key, {})
-            rec["lxns_token"] = token
+            rec["lxns_token"] = access_token
+            if refresh_token:
+                rec["lxns_refresh_token"] = refresh_token
             await self.save()
 
     def get_lxns_token(self, user_key: str) -> str:
-        """获取用户的落雪 OAuth token。"""
+        """获取用户的落雪 OAuth access_token。"""
         d = self._data.get(user_key)
         if d:
             return d.get("lxns_token", "") or ""
         return ""
 
+    def get_lxns_refresh_token(self, user_key: str) -> str:
+        """获取用户的落雪 OAuth refresh_token。"""
+        d = self._data.get(user_key)
+        if d:
+            return d.get("lxns_refresh_token", "") or ""
+        return ""
+
     def get_all_lxns_tokens(self) -> dict[str, str]:
-        """获取所有绑定了落雪 token 的用户。返回 {user_key: token}。"""
+        """获取所有绑定了落雪 token 的用户。返回 {user_key: access_token}。"""
         result = {}
         for key, d in self._data.items():
             token = d.get("lxns_token", "") or ""

@@ -145,24 +145,38 @@ class MaiChuPlugin(Star):
         logger.info("maimai DX / CHUNITHM 插件已加载")
 
     async def _validate_lxns_tokens(self) -> None:
-        """插件重载时验证所有已绑定的落雪 token，仅 401 明确失效时清除。"""
+        """插件重载时验证所有已绑定的落雪 token，尝试刷新后验证，仅 401 明确失效时清除。"""
         all_tokens = self.user_store.get_all_lxns_tokens()
         if not all_tokens:
             return
         logger.info(f"正在验证 {len(all_tokens)} 个落雪 token...")
+        client_id = self.config.get("lxns_client_id", "")
+        client_secret = self.config.get("lxns_client_secret", "")
         expired = []
         for user_key, token in all_tokens.items():
+            # access_token 15 分钟过期，先用 refresh_token 刷新
+            refresh_token = self.user_store.get_lxns_refresh_token(user_key)
+            if refresh_token and client_id and client_secret:
+                try:
+                    new_token, new_refresh = await self.lxns.oauth_refresh(
+                        refresh_token, client_id, client_secret
+                    )
+                    await self.user_store.set_lxns_token(user_key, new_token, new_refresh)
+                    token = new_token
+                    logger.debug(f"落雪 token 已刷新 ({user_key})")
+                except Exception as e:
+                    logger.debug(f"落雪 token 刷新失败，尝试旧 token ({user_key}): {e}")
+
+            # 验证 token
             try:
                 await self.lxns.oauth_get_player(token, "maimai")
             except Exception as e:
                 err_str = str(e).lower()
-                # 只有明确的 401 unauthorized 才判定为失效
                 if "401" in err_str or "unauthorized" in err_str or "invalid" in err_str:
                     expired.append(user_key)
                     await self.user_store.remove_lxns_token(user_key)
                     logger.warning(f"落雪 token 失效 ({user_key}): {e}")
                 else:
-                    # 网络错误等不判定为失效
                     logger.debug(f"落雪 token 验证跳过（非认证错误）({user_key}): {e}")
         if expired:
             self._expired_tokens = set(expired)
@@ -401,14 +415,14 @@ class MaiChuPlugin(Star):
         redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
 
         try:
-            access_token = await self.lxns.oauth_exchange(text, client_id, client_secret, redirect_uri)
+            access_token, refresh_token = await self.lxns.oauth_exchange(text, client_id, client_secret, redirect_uri)
         except Exception as e:
             logger.debug(f"OAuth 交换尝试失败（非密钥消息）: {e}")
             return
 
         del self._pending_oauth[user_key]
         self._expired_tokens.discard(user_key)
-        await self.user_store.set_lxns_token(user_key, access_token)
+        await self.user_store.set_lxns_token(user_key, access_token, refresh_token)
 
         # 自动切换舞萌查分器为落雪
         gid = self._group_id(event)
@@ -535,13 +549,29 @@ class MaiChuPlugin(Star):
             return None
         return qq
 
-    def _get_lxns_token(self, event: AstrMessageEvent) -> str:
-        """获取用户的有效落雪 token：优先 OAuth 绑定，其次全局配置。"""
+    async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
+        """获取用户的有效落雪 token：OAuth 绑定 + 自动刷新，其次全局配置。"""
         user_key = self._user_key(event)
         token = self.user_store.get_lxns_token(user_key)
-        if token:
-            return token
-        return self.config.get("lxns_user_token", "")
+        if not token:
+            return self.config.get("lxns_user_token", "")
+
+        # 尝试刷新：用 refresh_token 换新的 access_token
+        refresh_token = self.user_store.get_lxns_refresh_token(user_key)
+        if refresh_token:
+            client_id = self.config.get("lxns_client_id", "")
+            client_secret = self.config.get("lxns_client_secret", "")
+            if client_id and client_secret:
+                try:
+                    new_token, new_refresh = await self.lxns.oauth_refresh(
+                        refresh_token, client_id, client_secret
+                    )
+                    await self.user_store.set_lxns_token(user_key, new_token, new_refresh)
+                    return new_token
+                except Exception as e:
+                    logger.debug(f"OAuth token 刷新失败，使用现有 token: {e}")
+
+        return token
 
     # ================================================================
     # 帮助
@@ -666,7 +696,7 @@ class MaiChuPlugin(Star):
 
     async def _route_b50(self, event: AstrMessageEvent, game: str) -> None:
         """统一 B50/B30 路由。"""
-        user_token = self._get_lxns_token(event)
+        user_token = await self._get_lxns_token(event)
         saved_token = self.lxns._user_token
         if user_token:
             self.lxns._user_token = user_token
@@ -689,7 +719,7 @@ class MaiChuPlugin(Star):
 
     async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
         """统一 minfo 路由。"""
-        user_token = self._get_lxns_token(event)
+        user_token = await self._get_lxns_token(event)
         saved_token = self.lxns._user_token
         if user_token:
             self.lxns._user_token = user_token
@@ -1051,7 +1081,7 @@ class MaiChuPlugin(Star):
         target = args[1].strip().lower() if len(args) > 1 else ""
 
         user_key = self._user_key(event)
-        lxns_token = self._get_lxns_token(event)
+        lxns_token = await self._get_lxns_token(event)
         df_token = self.user_store.get_divingfish_token(user_key)
 
         if target in ("水鱼", "divingfish", "df"):
@@ -1109,7 +1139,7 @@ class MaiChuPlugin(Star):
         prober = pending[0]
         del self._pending_sync[user_key]
 
-        lxns_token = self._get_lxns_token(event)
+        lxns_token = await self._get_lxns_token(event)
         df_token = self.user_store.get_divingfish_token(user_key)
         label = "水鱼" if prober == "divingfish" else "落雪"
 

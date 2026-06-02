@@ -74,8 +74,8 @@ class LxnsAPI:
     # OAuth2
     # ================================================================
 
-    async def oauth_exchange(self, code: str, client_id: str, client_secret: str, redirect_uri: str) -> str:
-        """用授权码换取 access_token。"""
+    async def oauth_exchange(self, code: str, client_id: str, client_secret: str, redirect_uri: str) -> tuple[str, str]:
+        """用授权码换取 access_token + refresh_token。返回 (access_token, refresh_token)。"""
         session = await self._get_session()
         url = f"{self.BASE_URL}/oauth/token"
         async with session.post(url, data={
@@ -89,7 +89,25 @@ class LxnsAPI:
             if not data.get("success"):
                 msg = data.get("message", "未知错误")
                 raise ServerError(f"OAuth 交换失败: {msg}")
-            return data["data"]["access_token"]
+            token_data = data["data"]
+            return token_data["access_token"], token_data.get("refresh_token", "")
+
+    async def oauth_refresh(self, refresh_token: str, client_id: str, client_secret: str) -> tuple[str, str]:
+        """用 refresh_token 刷新 access_token。返回 (new_access_token, new_refresh_token)。"""
+        session = await self._get_session()
+        url = f"{self.BASE_URL}/oauth/token"
+        async with session.post(url, data={
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }) as res:
+            data = await res.json()
+            if not data.get("success"):
+                msg = data.get("message", "未知错误")
+                raise ServerError(f"OAuth 刷新失败: {msg}")
+            token_data = data["data"]
+            return token_data["access_token"], token_data.get("refresh_token", refresh_token)
 
     async def oauth_get_player(self, access_token: str, game: str = "maimai") -> dict:
         """用 OAuth access_token 获取玩家信息。game: 'maimai' 或 'chunithm'"""
