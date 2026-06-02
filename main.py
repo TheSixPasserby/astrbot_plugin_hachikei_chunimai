@@ -1296,7 +1296,8 @@ class MaiChuPlugin(Star):
 
             # 版牌进度 / 等级进度
             if re.search(r"进度\s*$", text):
-                async for r in mai_plate_progress_handler(event, self.api, self.music_data):
+                qq = self._get_qq(event)
+                async for r in mai_plate_progress_handler(event, self.api, self.music_data, qq=qq):
                     yield r
                 return
 

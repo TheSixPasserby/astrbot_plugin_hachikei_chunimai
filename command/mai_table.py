@@ -117,13 +117,6 @@ async def mai_rise_score_handler(
                     "ra": s.get("dx_rating", 0) or s.get("rating", 0),
                 })())
         else:
-            from ..utils import extract_at_targets
-            at_targets = extract_at_targets(event)
-            if at_targets:
-                try:
-                    qq = int(at_targets[0])
-                except (ValueError, TypeError):
-                    pass
             user_info = await api.query_user_b50(qqid=qq, username=username)
             if not user_info.charts:
                 yield event.plain_result("未找到游玩记录。请先绑定查分器。")
@@ -177,6 +170,7 @@ async def mai_plate_progress_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """版牌进度。"""
@@ -219,15 +213,6 @@ async def mai_plate_progress_handler(
             yield event.plain_result("未识别的版本。")
             return
 
-        from ..utils import extract_at_targets
-        qq = None
-        at_targets = extract_at_targets(event)
-        if at_targets:
-            try:
-                qq = int(at_targets[0])
-            except (ValueError, TypeError):
-                pass
-
         records = await api.query_user_plate(qqid=qq, username=username, version=[version])
         total = len(records)
         completed = sum(1 for r in records if _check_plate_rank(r, rank))
@@ -267,6 +252,7 @@ async def mai_level_progress_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """等级进度。"""
@@ -284,15 +270,6 @@ async def mai_level_progress_handler(
         filter_status = m.group(3)
         page = int(m.group(4)) if m.group(4) else 1
         username = m.group(5)
-
-        from ..utils import extract_at_targets
-        qq = None
-        at_targets = extract_at_targets(event)
-        if at_targets:
-            try:
-                qq = int(at_targets[0])
-            except (ValueError, TypeError):
-                pass
 
         user_info = await api.query_user_b50(qqid=qq, username=username)
         if not user_info.charts:
@@ -343,6 +320,7 @@ async def mai_level_achievement_list_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
+    qq: int | None = None,
     **_: Any,
 ):
     """分数列表。"""
@@ -355,15 +333,6 @@ async def mai_level_achievement_list_handler(
         level = m.group(1)
         page = int(m.group(2)) if m.group(2) else 1
         username = m.group(3)
-
-        from ..utils import extract_at_targets
-        qq = None
-        at_targets = extract_at_targets(event)
-        if at_targets:
-            try:
-                qq = int(at_targets[0])
-            except (ValueError, TypeError):
-                pass
 
         user_info = await api.query_user_b50(qqid=qq, username=username)
         if not user_info.charts:
