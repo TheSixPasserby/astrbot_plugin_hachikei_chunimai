@@ -86,6 +86,8 @@ class MaiChuPlugin(Star):
         self._expired_tokens: set[str] = set()
         # 同步数据等待状态: {user_key: (prober, expire_timestamp)}
         self._pending_sync: dict[str, tuple[str, float]] = {}
+        # 水鱼 Token 等待状态: {user_key: expire_timestamp}
+        self._pending_df: dict[str, float] = {}
 
         # 管理员 ID
         self.admin_ids: list[str] = []
@@ -450,24 +452,61 @@ class MaiChuPlugin(Star):
     async def _bind_divingfish(self, event: AstrMessageEvent):
         """绑定水鱼 Import-Token。"""
         args = event.get_message_str().strip().split(maxsplit=1)
-        if len(args) < 2:
-            yield self._message(
-                "用法：绑定水鱼 <Import-Token>\n"
-                "Token 可在 diving-fish.com 个人设置中获取。"
-            )
-            return
-        token = args[1].strip()
-        if len(token) < 50:
-            yield self._message("Token 格式不正确，请检查后重试。")
-            return
-        user_key = self._user_key(event)
-        await self.user_store.set_divingfish_token(user_key, token)
 
-        # 自动切换舞萌查分器为水鱼
+        # 绑定水鱼 <token> — 直接绑定
+        if len(args) >= 2:
+            token = args[1].strip()
+            if len(token) < 50:
+                yield self._message("Token 格式不正确，请检查后重试。")
+                return
+            user_key = self._user_key(event)
+            await self._df_bind_and_switch(event, user_key, token)
+            return
+
+        # 绑定水鱼（无参数）— 引导获取 Token，监听 5 分钟
+        user_key = self._user_key(event)
+        self._pending_df[user_key] = time.time() + 5 * 60
+        yield self._message(
+            "🔗 请前往水鱼查分器获取 Import-Token：\n"
+            "https://maimai.diving-fish.com/\n\n"
+            "1. 登录查分器\n"
+            "2. 点击右上角「编辑个人资料」\n"
+            "3. 复制「成绩导入 Token」\n"
+            "4. 在 **5 分钟内** 直接发送到聊天窗口即可"
+        )
+
+        async def _timeout():
+            await asyncio.sleep(5 * 60)
+            if self._pending_df.pop(user_key, None):
+                try:
+                    result = event.make_result().message("⏰ 水鱼绑定超时，请重新发送「绑定水鱼」。")
+                    await event.send(result)
+                except Exception:
+                    pass
+        asyncio.create_task(_timeout())
+
+    async def _try_df_token(self, event: AstrMessageEvent) -> bool:
+        """检测用户是否在等待发送水鱼 Token。"""
+        user_key = self._user_key(event)
+        expire = self._pending_df.get(user_key)
+        if not expire or time.time() > expire:
+            self._pending_df.pop(user_key, None)
+            return False
+
+        text = event.get_message_str().strip()
+        if len(text) < 50 or len(text) > 300 or " " in text:
+            return False
+
+        del self._pending_df[user_key]
+        await self._df_bind_and_switch(event, user_key, text)
+        return True
+
+    async def _df_bind_and_switch(self, event: AstrMessageEvent, user_key: str, token: str) -> None:
+        """绑定水鱼 Token 并自动切换查分器。"""
+        await self.user_store.set_divingfish_token(user_key, token)
         gid = self._group_id(event)
         if gid:
             await self.group_store.set_prober("maimai", "divingfish", gid)
-
         yield self._message(
             "✅ 水鱼查分器绑定成功！已自动切换舞萌查分器为水鱼。\n"
             "如需使用落雪查分器，请发送：更改查分器 落雪"
@@ -526,7 +565,7 @@ class MaiChuPlugin(Star):
             "**绑定指引：**",
             "• `绑定QQ <QQ号>` — 绑定 QQ",
             "• `绑定落雪` — 授权落雪查分器（推荐）",
-            "• `绑定水鱼 <Token>` — 绑定水鱼 Import-Token",
+            "• `绑定水鱼` — 获取水鱼 Import-Token",
             "• `解绑落雪` / `解绑水鱼` — 取消授权",
         ])
         if not qq and not lxns_token:
@@ -1190,6 +1229,11 @@ class MaiChuPlugin(Star):
             async for r in self._try_oauth_code(event):
                 yield r
             return
+
+        # 水鱼 Token 监听（5 分钟内直接发送 Token）
+        if self._pending_df.get(self._user_key(event)):
+            if await self._try_df_token(event):
+                return
 
         text = event.get_message_str().strip()
 
