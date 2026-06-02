@@ -462,7 +462,16 @@ class MaiChuPlugin(Star):
             return
         user_key = self._user_key(event)
         await self.user_store.set_divingfish_token(user_key, token)
-        yield self._message("✅ 水鱼 Import-Token 绑定成功！发送二维码即可同步成绩。")
+
+        # 自动切换舞萌查分器为水鱼
+        gid = self._group_id(event)
+        if gid:
+            await self.group_store.set_prober("maimai", "divingfish", gid)
+
+        yield self._message(
+            "✅ 水鱼查分器绑定成功！已自动切换舞萌查分器为水鱼。\n"
+            "如需使用落雪查分器，请发送：更改查分器 落雪"
+        )
 
     @command("unbinddf", alias={"解绑水鱼"})
     async def _unbind_divingfish(self, event: AstrMessageEvent):
