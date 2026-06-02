@@ -1153,7 +1153,7 @@ class MaiChuPlugin(Star):
 
             lines = [
                 f"✅ 同步成功！",
-                f"  玩家: {result.player_name or '未知'}",
+                f"  玩家: {result.player_name}" if result.player_name else "",
                 f"  Rating: {result.rating}",
                 f"  同步曲数: {result.score_count}",
             ]

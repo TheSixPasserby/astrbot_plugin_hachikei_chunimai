@@ -170,17 +170,8 @@ class QRSyncService:
         scores = await self.client.scores(arcade_id, provider=self._arcade_provider())
         target_id = self._identifier(credentials=import_token)
         await self.client.updates(target_id, scores.scores, provider=self._divingfish_provider())
-
-        # 从水鱼获取玩家名
-        player_name = ""
-        try:
-            player = await self.client.players(target_id, provider=self._divingfish_provider())
-            player_name = str(getattr(player, "name", "") or "")
-        except Exception:
-            pass
-
         return SyncResult(
-            player_name=player_name,
+            player_name="",
             rating=getattr(scores, "rating", 0) or 0,
             score_count=len(scores.scores),
         )
