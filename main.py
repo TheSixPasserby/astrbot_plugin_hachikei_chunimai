@@ -134,7 +134,8 @@ class MaiChuPlugin(Star):
         try:
             from .qr_sync import QRSyncService
             proxy = self.config.get("http_proxy", "")
-            self._qr_sync = QRSyncService(timeout=self.timeout, proxy=proxy)
+            df_dev_token = self.config.get("mai_divingfish_token", "")
+            self._qr_sync = QRSyncService(timeout=self.timeout, proxy=proxy, df_dev_token=df_dev_token)
             logger.info("QR 同步服务已初始化（maimai-py）")
         except Exception as e:
             logger.warning(f"QR 同步服务初始化失败（maimai-py 未安装？）: {e}")
@@ -1118,7 +1119,7 @@ class MaiChuPlugin(Star):
 
     async def _try_sync_sgid(self, event: AstrMessageEvent, sgid: str):
         """等待中的同步：收到 SGID 后执行同步。"""
-        from .qr_sync import extract_sgid
+        from .qr_sync import extract_sgid, is_valid_sgid
 
         if not sgid:
             sgid = extract_sgid(event.get_message_str()) or ""
@@ -1131,9 +1132,8 @@ class MaiChuPlugin(Star):
             self._pending_sync.pop(user_key, None)
             return
 
-        err = self._qr_sync.validate_sgid(sgid)
-        if err:
-            yield self._message(f"❌ {err}")
+        # 只验证格式，不检查 SGID 新鲜度（可能在二维码上停留了几分钟）
+        if not is_valid_sgid(sgid):
             return
 
         prober = pending[0]

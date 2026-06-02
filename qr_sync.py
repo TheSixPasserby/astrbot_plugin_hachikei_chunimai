@@ -64,9 +64,10 @@ class SyncResult:
 class QRSyncService:
     """SGWCMAID 二维码同步服务（基于 maimai-py）。"""
 
-    def __init__(self, timeout: float = 30.0, proxy: str = "") -> None:
+    def __init__(self, timeout: float = 30.0, proxy: str = "", df_dev_token: str = "") -> None:
         self._timeout = timeout
         self._proxy = proxy.strip() or None
+        self._df_dev_token = df_dev_token.strip() or ""
         self._client: Any = None
         self._imports: dict[str, Any] | None = None
         self._used_sgids: dict[str, float] = {}
@@ -131,7 +132,10 @@ class QRSyncService:
             return self._load_imports()["ArcadeProvider"]()
 
     def _divingfish_provider(self) -> Any:
-        return self._load_imports()["DivingFishProvider"]()
+        try:
+            return self._load_imports()["DivingFishProvider"](developer_token=self._df_dev_token)
+        except TypeError:
+            return self._load_imports()["DivingFishProvider"]()
 
     def _lxns_provider(self) -> Any:
         return self._load_imports()["LXNSProvider"]()
