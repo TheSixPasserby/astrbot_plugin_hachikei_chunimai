@@ -460,7 +460,8 @@ class MaiChuPlugin(Star):
                 yield self._message("Token 格式不正确，请检查后重试。")
                 return
             user_key = self._user_key(event)
-            await self._df_bind_and_switch(event, user_key, token)
+            async for r in self._df_bind_and_switch(event, user_key, token):
+                yield r
             return
 
         # 绑定水鱼（无参数）— 引导获取 Token，监听 5 分钟
@@ -498,7 +499,14 @@ class MaiChuPlugin(Star):
             return False
 
         del self._pending_df[user_key]
-        await self._df_bind_and_switch(event, user_key, text)
+        await self.user_store.set_divingfish_token(user_key, text)
+        gid = self._group_id(event)
+        if gid:
+            await self.group_store.set_prober("maimai", "divingfish", gid)
+        self._pending_df_message = (
+            "✅ 水鱼查分器绑定成功！已自动切换舞萌查分器为水鱼。\n"
+            "如需使用落雪查分器，请发送：更改查分器 落雪"
+        )
         return True
 
     async def _df_bind_and_switch(self, event: AstrMessageEvent, user_key: str, token: str) -> None:
@@ -1228,6 +1236,10 @@ class MaiChuPlugin(Star):
         # 水鱼 Token 监听（5 分钟内直接发送 Token）
         if self._pending_df.get(self._user_key(event)):
             if await self._try_df_token(event):
+                msg = getattr(self, '_pending_df_message', None)
+                if msg:
+                    yield self._message(msg)
+                    self._pending_df_message = None
                 return
 
         text = event.get_message_str().strip()
