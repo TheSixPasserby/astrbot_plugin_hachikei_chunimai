@@ -3,5 +3,5 @@ display_name: maimai DX 综合助手
 desc: maimai DX & CHUNITHM 综合插件：查分、搜歌、猜歌、牌桌、别名。
 version: v0.1.0
 author: TheSixPasserby
-repo: ""
+repo: "https://github.com/TheSixPasserby/astrbot_plugin_hachikei_chunimai"
 astrbot_version: ">=4.5.2"
