@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, describe_error
-from ..chu_data import ChuDataManager, chu_rank_label, CHU_FC_LABELS, CHU_CHAIN_LABELS
+from ..chu_data import ChuDataManager, chu_rank_label, CHU_FC_LABELS, CHU_CHAIN_LABELS, CHU_CLEAR_LABELS
 from ..utils import fmt_rate as _fmt_rate
 
 try:

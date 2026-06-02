@@ -6,8 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ..errors import MaimaiError, MusicNotPlayError, describe_error
-from ..models import UserInfo
-from ..mai_data import MusicDataManager, achievements_label, DIFF_INDEX_TO_LABEL
+from ..mai_data import MusicDataManager, DIFF_INDEX_TO_LABEL
 from ..utils import fmt_fc as _fmt_fc, fmt_rate as _fmt_rate
 from ..image_utils import pie_chart, image_to_base64
 

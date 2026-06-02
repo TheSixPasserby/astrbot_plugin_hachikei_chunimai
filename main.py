@@ -15,7 +15,7 @@ from astrbot.api.star import Context, Star, StarTools
 from .api_client import MaimaiAPI
 from .lxns_client import LxnsAPI
 from .chu_data import ChuDataManager
-from .command.chunithm import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
+from .command.chu_score import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
 from .command.mai_score import lxns_mai_b50_handler, lxns_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
@@ -346,7 +346,7 @@ class MaiChuPlugin(Star):
     # 绑定 QQ
     # ================================================================
 
-    @command("绑定QQ", alias={"绑定QQ"})
+    @command("绑定QQ")
     async def _bind_qq(self, event: AstrMessageEvent):
         args = event.get_message_str().strip().split()
         if len(args) < 2 or not args[1].isdigit():
@@ -591,13 +591,6 @@ class MaiChuPlugin(Star):
             return int(qq)
         return None
 
-    def _require_qq(self, event: AstrMessageEvent) -> int | None:
-        """获取 QQ 号，未绑定则提示并返回 None。"""
-        qq = self._get_qq(event)
-        if qq is None:
-            return None
-        return qq
-
     async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
         """获取用户的有效落雪 token：OAuth 绑定 + 自动刷新，其次全局配置。"""
         user_key = self._user_key(event)
@@ -673,7 +666,6 @@ class MaiChuPlugin(Star):
             return
         text = event.get_message_str().strip()
         # 解析: 更改别名源 舞萌/中二 水鱼/落雪
-        import re
         m = re.search(r"(舞萌|maimai|中二|chunithm)\s*(水鱼|yuzuchan|落雪|lxns)", text, re.IGNORECASE)
         if not m:
             yield self._message(
@@ -938,7 +930,7 @@ class MaiChuPlugin(Star):
     async def _my_ranking(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
-        qq = self._require_qq(event)
+        qq = self._get_qq(event)
         if qq is None:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 绑定。")
             return
@@ -1255,7 +1247,7 @@ class MaiChuPlugin(Star):
             if is_group_message(event):
                 async for r in mai_guess_solve_handler(event, self.music_data):
                     yield r
-                    return
+                return
 
             # 别名查歌：xxx是什么歌
             if re.search(r"(是什么歌|是啥歌)$", text):
@@ -1321,12 +1313,6 @@ class MaiChuPlugin(Star):
                 async for r in alias_query_handler(event, self.music_data):
                     yield r
             return
-
-        # --- 以下仅 chunithm 模式 ---
-
-        if game == "chunithm":
-            # TODO: chunithm 正则命令
-            pass
 
     # ================================================================
     # 内置功能

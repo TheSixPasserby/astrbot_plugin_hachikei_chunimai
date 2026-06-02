@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from ..errors import MaimaiError, describe_error
 from ..mai_data import MusicDataManager, DIFF_INDEX_TO_LABEL
 
 try:

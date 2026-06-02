@@ -59,10 +59,6 @@ def now_cn() -> datetime:
     return datetime.now(_CN_TZ)
 
 
-def format_ts(ts: float) -> str:
-    return datetime.fromtimestamp(ts, _CN_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
-
 # --- 密码学安全的随机选择 ---
 
 def secure_choice(items: list) -> Any:

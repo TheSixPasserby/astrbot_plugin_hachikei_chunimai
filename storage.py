@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
@@ -77,7 +78,6 @@ class UserStore:
         async with self._lock:
             rec = self._data.setdefault(user_key, {})
             rec["divingfish_import_token"] = token
-            import time
             rec["bound_at"] = time.time()
             await self.save()
 
@@ -85,7 +85,6 @@ class UserStore:
         async with self._lock:
             rec = self._data.setdefault(user_key, {})
             rec["rating"] = rating
-            import time
             rec["last_sync_at"] = time.time()
             rec["last_sync_result"] = result
             await self.save()
@@ -95,7 +94,6 @@ class UserStore:
             rec = self._data.get(user_key)
             if rec:
                 rec["rating"] = 0.0
-                import time
                 rec["last_sync_at"] = time.time()
                 rec["last_sync_result"] = result
                 await self.save()

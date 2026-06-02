@@ -6,7 +6,7 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
 
-from .errors import MaimaiError, ServerError, UserNotFoundError
+from .errors import ServerError, UserNotFoundError
 
 try:
     from astrbot.api import logger
