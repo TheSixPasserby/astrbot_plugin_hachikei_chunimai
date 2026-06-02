@@ -72,6 +72,7 @@ async def mai_rise_score_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
+    prober: str = "divingfish",
     lxns: Any | None = None,
     lxns_token: str = "",
     qq: int | None = None,
@@ -89,36 +90,33 @@ async def mai_rise_score_handler(
         target_gain = int(m.group(2)) if m.group(2) else 1
         username = m.group(3)
 
-        # 收集所有成绩：优先 Lxns，其次 DivingFish
+        # 收集所有成绩：根据查分器设置选择数据源
         all_charts = []
-        use_lxns = lxns and lxns_token
 
-        if use_lxns:
+        if prober == "lxns" and lxns and lxns_token:
+            saved = lxns._user_token
+            lxns._user_token = lxns_token
             try:
-                saved = lxns._user_token
-                lxns._user_token = lxns_token
                 bests = await lxns._user_get("/user/maimai/player/bests")
+            finally:
                 lxns._user_token = saved
-                for s in bests.get("standard", []):
-                    all_charts.append(type("C", (), {
-                        "song_id": str(s.get("id", "")),
-                        "title": s.get("song_name", ""),
-                        "level_index": s.get("level_index", 3),
-                        "achievements": s.get("achievements", 0),
-                        "ra": s.get("dx_rating", 0) or s.get("rating", 0),
-                    })())
-                for s in bests.get("dx", []):
-                    all_charts.append(type("C", (), {
-                        "song_id": str(s.get("id", "")),
-                        "title": s.get("song_name", ""),
-                        "level_index": s.get("level_index", 3),
-                        "achievements": s.get("achievements", 0),
-                        "ra": s.get("dx_rating", 0) or s.get("rating", 0),
-                    })())
-            except Exception:
-                use_lxns = False
-
-        if not use_lxns:
+            for s in bests.get("standard", []):
+                all_charts.append(type("C", (), {
+                    "song_id": str(s.get("id", "")),
+                    "title": s.get("song_name", ""),
+                    "level_index": s.get("level_index", 3),
+                    "achievements": s.get("achievements", 0),
+                    "ra": s.get("dx_rating", 0) or s.get("rating", 0),
+                })())
+            for s in bests.get("dx", []):
+                all_charts.append(type("C", (), {
+                    "song_id": str(s.get("id", "")),
+                    "title": s.get("song_name", ""),
+                    "level_index": s.get("level_index", 3),
+                    "achievements": s.get("achievements", 0),
+                    "ra": s.get("dx_rating", 0) or s.get("rating", 0),
+                })())
+        else:
             from ..utils import extract_at_targets
             at_targets = extract_at_targets(event)
             if at_targets:
@@ -128,7 +126,7 @@ async def mai_rise_score_handler(
                     pass
             user_info = await api.query_user_b50(qqid=qq, username=username)
             if not user_info.charts:
-                yield event.plain_result("未找到游玩记录。请先绑定落雪或水鱼查分器。")
+                yield event.plain_result("未找到游玩记录。请先绑定查分器。")
                 return
             if user_info.charts.sd:
                 all_charts.extend(user_info.charts.sd)
