@@ -495,6 +495,8 @@ class MaiChuPlugin(Star):
             return False
 
         text = event.get_message_str().strip()
+        # QQ Official 消息中 @bot 会混入文本，去掉 @mention 部分
+        text = re.sub(r"@\S+\s*", "", text).strip()
         if len(text) < 50 or len(text) > 300 or " " in text:
             return False
 
@@ -1226,6 +1228,12 @@ class MaiChuPlugin(Star):
         """全局消息处理：猜歌答案、别名查歌、分数计算、运势等。"""
         if self._is_group_disabled(event):
             return
+        # 跳过机器人自身消息（避免 bot 回复触发监听）
+        try:
+            if event.get_sender_id() == event.get_self_id():
+                return
+        except AttributeError:
+            pass
 
         # OAuth 密钥监听（15 分钟内直接发送密钥）
         if self._pending_oauth.get(self._user_key(event)):
