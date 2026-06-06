@@ -15,7 +15,7 @@ from astrbot.api.star import Context, Star, StarTools
 from .api_client import MaimaiAPI
 from .lxns_client import LxnsAPI
 from .chu_data import ChuDataManager
-from .command.chu_score import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler
+from .command.chu_score import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler, chu_search_alias_handler
 from .command.mai_score import lxns_mai_b50_handler, lxns_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
@@ -1278,12 +1278,6 @@ class MaiChuPlugin(Star):
                     yield r
                 return
 
-            # 别名查歌：xxx是什么歌
-            if re.search(r"(是什么歌|是啥歌)$", text):
-                async for r in mai_search_alias_handler(event, self.music_data):
-                    yield r
-                    return
-
             # 分数计算：X的Y是多少分
             if re.match(r"^[\d.]+的[\d.]+是多少分$", text):
                 async for r in mai_score_calc_handler(event, self.music_data):
@@ -1336,7 +1330,7 @@ class MaiChuPlugin(Star):
                     yield r
                 return
 
-        # --- 共用：别名查询（按游戏路由） ---
+        # --- 共用：别名相关（按游戏路由） ---
 
         if re.search(r"有什么别[名称]$", text):
             if game == "chunithm":
@@ -1344,6 +1338,15 @@ class MaiChuPlugin(Star):
                     yield r
             else:
                 async for r in alias_query_handler(event, self.music_data):
+                    yield r
+            return
+
+        if re.search(r"(是什么歌|是啥歌)$", text):
+            if game == "chunithm":
+                async for r in chu_search_alias_handler(event, self.chu_data):
+                    yield r
+            else:
+                async for r in mai_search_alias_handler(event, self.music_data):
                     yield r
             return
 

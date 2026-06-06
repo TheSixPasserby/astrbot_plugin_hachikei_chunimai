@@ -338,3 +338,33 @@ async def chu_alias_query_handler(
     except Exception as e:
         logger.exception("CHUNITHM 别名查询异常")
         yield event.plain_result(f"查询失败：{e}")
+
+
+async def chu_search_alias_handler(
+    event: AstrMessageEvent,
+    data_mgr: ChuDataManager,
+    **_: Any,
+):
+    """别名查歌：xxx是什么歌（CHUNITHM）。"""
+    try:
+        text = event.get_message_str().strip()
+        m = re.match(r"^(.+?)(是什么歌|是啥歌)$", text)
+        if not m:
+            return
+
+        alias_name = m.group(1).strip()
+        results = data_mgr.find_by_keyword(alias_name)
+
+        if not results:
+            yield event.plain_result(f"未找到「{alias_name}」对应的歌曲。")
+            return
+
+        lines = [f"🎵 找到 {len(results)} 首相关歌曲："]
+        for song in results[:10]:
+            levels = " / ".join(d.get("level", "?") for d in song.difficulties if not d.get("disabled"))
+            lines.append(f"  {song.id}. {song.title} ({levels})")
+        yield event.plain_result("\n".join(lines))
+
+    except Exception as e:
+        logger.exception("CHUNITHM 别名查歌异常")
+        yield event.plain_result(f"查询失败：{e}")
