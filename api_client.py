@@ -22,9 +22,7 @@ class MaimaiAPI:
 
     MaiProxyAPI = "https://proxy.yuzuchan.site"
     MaiProberAPI = "https://www.diving-fish.com/api/maimaidxprober"
-    MaiCover = "https://www.diving-fish.com/covers"
     MaiAliasAPI = "https://www.yuzuchan.moe/api/maimaidx"
-    QQAPI = "http://q1.qlogo.cn/g"
 
     def __init__(self, timeout: int = 30) -> None:
         self._timeout = timeout
@@ -234,15 +232,3 @@ class MaimaiAPI:
             return result.content
         raise ServerError("获取牌子数据失败")
 
-    # --- QQ 头像 ---
-
-    async def qqlogo(self, qqid: int | None = None, icon: str | None = None) -> bytes | None:
-        session = await self._get_session()
-        if qqid:
-            params = {"b": "qq", "nk": qqid, "s": 100}
-            async with session.get(self.QQAPI, params=params) as res:
-                return await res.read() if res.status == 200 else None
-        if icon:
-            async with session.get(icon) as res:
-                return await res.read() if res.status == 200 else None
-        return None

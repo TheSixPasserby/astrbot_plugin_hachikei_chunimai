@@ -416,6 +416,7 @@ class MaiChuPlugin(Star):
         client_id = self.config.get("lxns_client_id", "")
         client_secret = self.config.get("lxns_client_secret", "")
         redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+        logger.info(f"[oauth] 用户 {user_key} 尝试交换 code")
 
         try:
             access_token, refresh_token = await self.lxns.oauth_exchange(text, client_id, client_secret, redirect_uri)
@@ -752,6 +753,8 @@ class MaiChuPlugin(Star):
         if user_token:
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
+        prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
+        logger.info(f"[B50] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
         if qq is None and not user_token:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
             return
@@ -759,7 +762,7 @@ class MaiChuPlugin(Star):
             if game == "chunithm":
                 async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
                     yield r
-            elif self._get_prober(event, "maimai") == "lxns":
+            elif prober == "lxns":
                 async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
@@ -775,6 +778,8 @@ class MaiChuPlugin(Star):
         if user_token:
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
+        prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
+        logger.info(f"[minfo] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
         if qq is None and not user_token:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
             return
@@ -1187,6 +1192,7 @@ class MaiChuPlugin(Star):
 
         # 只验证格式，不检查 SGID 新鲜度（可能在二维码上停留了几分钟）
         if not is_valid_sgid(sgid):
+            logger.warning(f"[sync] SGID 格式无效: {sgid[:20]}...")
             return
 
         prober = pending[0]
@@ -1195,6 +1201,7 @@ class MaiChuPlugin(Star):
         lxns_token = await self._get_lxns_token(event)
         df_token = self.user_store.get_divingfish_token(user_key)
         label = "水鱼" if prober == "divingfish" else "落雪"
+        logger.info(f"[sync] 开始同步: prober={prober}, user={user_key}")
 
         yield self._message(f"🎮 正在同步成绩到{label}，请稍候...")
 

@@ -1,91 +1,12 @@
-"""PIL 工具函数：文字渲染、渐变、圆角、base64 转换。"""
+"""PIL 工具函数：封面路径、base64 转换、饼图。"""
 
 from __future__ import annotations
 
 import base64
 from io import BytesIO
 from pathlib import Path
-from typing import Union
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageOps
-
-
-# --- 字体路径（需要用户放置在 static/fonts/ 下） ---
-
-def _font_path(name: str, data_dir: Path) -> Path:
-    return data_dir / "static" / "fonts" / name
-
-
-class DrawText:
-    """封装 PIL 文字绘制，支持自动加载字体。"""
-
-    def __init__(self, draw: ImageDraw.ImageDraw, font_path: str) -> None:
-        self._draw = draw
-        self._font_path = font_path
-
-    def get_box(self, text: str, size: int) -> tuple[float, float, float, float]:
-        return ImageFont.truetype(self._font_path, size).getbbox(text)
-
-    def draw(
-        self,
-        x: int,
-        y: int,
-        size: int,
-        text: Union[str, int, float],
-        color: tuple[int, int, int, int] = (255, 255, 255, 255),
-        anchor: str = "lt",
-        stroke_width: int = 0,
-        stroke_fill: tuple[int, int, int, int] = (0, 0, 0, 0),
-        multiline: bool = False,
-    ) -> None:
-        font = ImageFont.truetype(self._font_path, size)
-        if multiline:
-            self._draw.multiline_text(
-                (x, y), str(text), color, font, anchor,
-                stroke_width=stroke_width, stroke_fill=stroke_fill,
-            )
-        else:
-            self._draw.text(
-                (x, y), str(text), color, font, anchor,
-                stroke_width=stroke_width, stroke_fill=stroke_fill,
-            )
-
-
-def tricolor_gradient(
-    width: int,
-    height: int,
-    color1: tuple[int, int, int] = (124, 129, 255),
-    color2: tuple[int, int, int] = (193, 247, 225),
-    color3: tuple[int, int, int] = (255, 255, 255),
-) -> Image.Image:
-    """绘制三色渐变背景。"""
-    array = np.zeros((height, width, 3), dtype=np.uint8)
-    for y in range(height):
-        if y < height * 0.4:
-            ratio = y / (height * 0.4)
-            color = (1 - ratio) * np.array(color1) + ratio * np.array(color2)
-        else:
-            ratio = (y - height * 0.4) / (height * 0.6)
-            color = (1 - ratio) * np.array(color2) + ratio * np.array(color3)
-        array[y, :] = np.clip(color, 0, 255)
-    return Image.fromarray(array).convert("RGBA")
-
-
-def rounded_corners(
-    image: Image.Image,
-    radius: int,
-    corners: tuple[bool, bool, bool, bool] = (True, True, True, True),
-) -> Image.Image:
-    """给图片添加圆角。"""
-    mask = Image.new("L", image.size, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle(
-        (0, 0, image.size[0], image.size[1]), radius, fill=255, corners=corners
-    )
-    new_im = ImageOps.fit(image, mask.size)
-    new_im.putalpha(mask)
-    return new_im
+from PIL import Image, ImageDraw, ImageFont
 
 
 def music_picture_path(music_id: int | str, cover_dir: Path) -> Path:
@@ -106,36 +27,6 @@ def music_picture_path(music_id: int | str, cover_dir: Path) -> Path:
     return cover_dir / "11000.png"
 
 
-def text_to_image(
-    text: str,
-    font_path: str | None = None,
-    font_size: int = 24,
-    fg: tuple[int, int, int] = (0, 0, 0),
-    bg: tuple[int, int, int] = (255, 255, 255),
-    padding: int = 10,
-    margin: int = 4,
-) -> Image.Image:
-    """将多行文本渲染为图片。"""
-    if font_path is None:
-        font = ImageFont.load_default()
-    else:
-        font = ImageFont.truetype(font_path, font_size)
-    lines = text.strip().split("\n")
-    max_width = 0
-    line_height = 0
-    for line in lines:
-        l, t, r, b = font.getbbox(line)
-        max_width = max(max_width, r)
-        line_height = max(line_height, b)
-    w = max_width + padding * 2
-    h = line_height * len(lines) + margin * (len(lines) - 1) + padding * 2
-    im = Image.new("RGB", (w, h), color=bg)
-    draw = ImageDraw.Draw(im)
-    for i, line in enumerate(lines):
-        draw.text((padding, padding + i * (margin + line_height)), line, font=font, fill=fg)
-    return im
-
-
 def image_to_base64(img: Image.Image, fmt: str = "PNG") -> str:
     """将 PIL 图片转为 base64 字符串（带 data: 前缀）。"""
     buf = BytesIO()
@@ -144,20 +35,13 @@ def image_to_base64(img: Image.Image, fmt: str = "PNG") -> str:
     return f"base64://{b64}"
 
 
-def base64_to_image(b64: str) -> Image.Image:
-    """将 base64 字符串还原为 PIL 图片。"""
-    if b64.startswith("base64://"):
-        b64 = b64[9:]
-    return Image.open(BytesIO(base64.b64decode(b64)))
-
-
 def pie_chart(
     data: dict[str, float],
     title: str = "",
     width: int = 400,
     height: int = 300,
 ) -> Image.Image:
-    """用 Pillow 绘制饼图（替代 pyecharts + Playwright）。"""
+    """用 Pillow 绘制饼图。"""
     import math
 
     total = sum(data.values())
