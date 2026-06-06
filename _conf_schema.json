@@ -74,12 +74,6 @@
     "description": "落雪开发者 API 密钥",
     "hint": "在 maimai.lxns.net/developer 申请，用于访问其他玩家数据"
   },
-  "lxns_user_token": {
-    "type": "string",
-    "default": "",
-    "description": "落雪个人 API 密钥（手动填写，优先级低于 OAuth 绑定）",
-    "hint": "在 maimai.lxns.net/user/profile 生成，或使用 绑定落雪 命令绑定"
-  },
   "lxns_client_id": {
     "type": "string",
     "default": "",

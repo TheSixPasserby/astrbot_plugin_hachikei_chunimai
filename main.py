@@ -111,8 +111,7 @@ class MaiChuPlugin(Star):
 
         # Lxns
         lxns_key = self.config.get("lxns_dev_key", "")
-        lxns_token = self.config.get("lxns_user_token", "")
-        self.lxns.configure(dev_key=lxns_key, user_token=lxns_token)
+        self.lxns.configure(dev_key=lxns_key)
 
         # 配置舞萌别名数据源
         mai_alias_src = self.config.get("mai_alias_source", "yuzuchan")
@@ -603,11 +602,11 @@ class MaiChuPlugin(Star):
         return None
 
     async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
-        """获取用户的有效落雪 token：OAuth 绑定 + 自动刷新，其次全局配置。"""
+        """获取用户的有效落雪 token：OAuth 绑定 + 自动刷新。"""
         user_key = self._user_key(event)
         token = self.user_store.get_lxns_token(user_key)
         if not token:
-            return self.config.get("lxns_user_token", "")
+            return ""
 
         # 尝试刷新：用 refresh_token 换新的 access_token
         refresh_token = self.user_store.get_lxns_refresh_token(user_key)
