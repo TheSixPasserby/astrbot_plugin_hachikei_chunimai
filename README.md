@@ -1,6 +1,6 @@
 # astrbot_plugin_hachikei_chunimai
 
-> ⚠️ **半成品项目，AI coding 堆出来的屎山。** 能用，但别指望代码质量。
+> ⚠️ **半成品项目，vibe coding 堆出来的屎山。** 能用，但别指望代码质量。
 > 功能会逐步完善，欢迎提 issue，但请不要 review 代码然后感到绝望。
 
 maimai DX & CHUNITHM 综合 AstrBot 插件。
@@ -17,7 +17,7 @@ maimai DX & CHUNITHM 综合 AstrBot 插件。
 | ✅ | 定数表、推分建议、版牌进度 |
 | ✅ | 每日运势、随机选歌 |
 | ✅ | SGWCMAID 二维码同步（maimai-py） |
-| ✅ | 落雪 OAuth 授权绑定 |
+| ✅ | 落雪 OAuth 授权绑定（refresh_token 自动续期） |
 | 🚧 | CHUNITHM 牌桌/进度（未实现） |
 | 🚧 | CHUNITHM 别名投票（未实现） |
 | ❌ | 图片版分表（纯文本 Markdown） |
@@ -35,7 +35,7 @@ maimai DX & CHUNITHM 综合 AstrBot 插件。
 
 - `maimai-py==1.4.3` — 二维码同步功能需要，含 `maimai-ffi==0.7.0`（二进制 wheel）
 - Python >= 3.9
-- Windows x64 + Python 3.10 已验证
+- Windows x64 / Linux aarch64 已验证
 
 如果 `maimai-py` 安装失败（lxml 版本冲突等），二维码同步功能不可用，其他功能正常。
 
@@ -60,7 +60,7 @@ maimai DX & CHUNITHM 综合 AstrBot 插件。
 | `绑定账号` | 查看绑定状态与引导 |
 | `绑定QQ <QQ号>` | 绑定 QQ |
 | `绑定落雪` | 落雪 OAuth 授权 |
-| `绑定水鱼 <Token>` | 绑定水鱼 Import-Token |
+| `绑定水鱼` | 水鱼 Import-Token 绑定（5分钟监听） |
 | `更改游戏 舞萌/中二` | 切换查询游戏 |
 | `同步数据 水鱼/落雪` | 街机二维码同步成绩 |
 | `b50` / `chub30` | Best 分表 |
@@ -71,17 +71,16 @@ maimai DX & CHUNITHM 综合 AstrBot 插件。
 
 ## 已知问题
 
-- 代码是 AI 逐步生成的，命名、结构、错误处理不一致
-- 部分功能只实现了 maimai DX，CHUNITHM 对应功能缺失
+- vibe coding 产物，代码一致性差
+- CHUNITHM 功能不完整（无牌桌/进度/别名投票）
 - 图片渲染基本没用，全靠 Markdown 文本
-- `image_utils.py` 大量代码闲置
 - 没有测试
-- 很多 try/except 静默吞异常
+- main.py 1200+ 行，该拆
 
 ## 项目结构
 
 ```
-├── main.py              # 入口，命令路由（~1100 行，该拆）
+├── main.py              # 入口，命令路由
 ├── qr_sync.py           # 二维码同步（maimai-py）
 ├── api_client.py        # DivingFish + Yuzuchan API
 ├── lxns_client.py       # Lxns API
@@ -91,10 +90,10 @@ maimai DX & CHUNITHM 综合 AstrBot 插件。
 ├── models.py            # Pydantic 模型
 ├── errors.py            # 异常定义
 ├── utils.py             # 工具函数
-├── image_utils.py       # PIL 工具（基本没用）
+├── image_utils.py       # PIL 工具
 ├── command/
 │   ├── mai_score.py     # maimai 查分（DivingFish + Lxns）
-│   ├── chunithm.py      # CHUNITHM 命令
+│   ├── chu_score.py     # CHUNITHM 命令
 │   ├── mai_search.py    # 搜索
 │   ├── mai_table.py     # 牌桌/进度
 │   ├── mai_guess.py     # 猜歌
