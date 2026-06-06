@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.2.2 (2026-06-06)
+
+### 修复
+- 水鱼 Token 绑定失效（@mention 混入文本导致验证失败）
+- bot 自身消息触发 token 监听
+- `_df_bind_and_switch` async generator 不能 await
+- QQ 提取崩溃（`qq_official` 不是数字）
+- 推分建议用错查分器（现在按 `更改查分器` 设置走）
+- 定数表改用 Markdown 格式 + 难度列
+
+### 清理
+- 删除 `image_utils.py` 中 6 个未使用函数
+- 删除 `api_client.py` 中 `MaiCover`、`qqlogo`
+- 核心路由加日志（B50/minfo/sync/oauth）
+
+## v0.2.1 (2026-06-02)
+
+### 修复
+- async generator 不能 await（_try_df_token）
+- QQ 提取崩溃（table handler 中 int(at_targets[0])）
+- 推分建议支持 Lxns API
+- 定数表 Markdown 格式
+
 ## v0.2.0 (2026-06-02)
 
 ### 重构
