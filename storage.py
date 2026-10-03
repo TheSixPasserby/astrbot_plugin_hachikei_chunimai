@@ -134,13 +134,18 @@ class UserStore:
             return d.get("qq", "") or ""
         return ""
 
-    async def set_lxns_token(self, user_key: str, access_token: str, refresh_token: str = "") -> None:
-        """保存用户的落雪 OAuth token。"""
+    async def set_lxns_token(
+        self, user_key: str, access_token: str, refresh_token: str = "",
+        expires_at: float = 0.0,
+    ) -> None:
+        """保存用户的落雪 OAuth token。``expires_at`` 为 access_token 的过期时间戳（秒）。"""
         async with self._lock:
             rec = self._data.setdefault(user_key, {})
             rec["lxns_token"] = access_token
             if refresh_token:
                 rec["lxns_refresh_token"] = refresh_token
+            if expires_at:
+                rec["lxns_expires_at"] = expires_at
             await self.save()
 
     def get_lxns_token(self, user_key: str) -> str:
@@ -156,6 +161,13 @@ class UserStore:
         if d:
             return d.get("lxns_refresh_token", "") or ""
         return ""
+
+    def get_lxns_expires_at(self, user_key: str) -> float:
+        """获取 access_token 的过期时间戳（秒）。0 表示未知。"""
+        d = self._data.get(user_key)
+        if d:
+            return float(d.get("lxns_expires_at", 0) or 0)
+        return 0.0
 
     def get_all_lxns_tokens(self) -> dict[str, str]:
         """获取所有绑定了落雪 token 的用户。返回 {user_key: access_token}。"""
