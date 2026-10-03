@@ -204,6 +204,7 @@ class GroupConfigStore:
         self._dir = data_dir
         self._lock = asyncio.Lock()
         self._cache: dict[str, set[str]] = {}
+        self._dict_cache: dict[str, dict] = {}
         self._dir.mkdir(parents=True, exist_ok=True)
 
     def _file(self, name: str) -> Path:
@@ -226,6 +227,25 @@ class GroupConfigStore:
         await asyncio.to_thread(
             UserStore._write_json, f, list(s)
         )
+
+    def _load_dict(self, name: str) -> dict:
+        """读取并缓存一个 dict 型配置。返回的 dict 可被调用方直接修改。"""
+        if name in self._dict_cache:
+            return self._dict_cache[name]
+        f = self._file(name)
+        try:
+            data = json.loads(f.read_text("utf-8-sig"))
+            data = data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, OSError, FileNotFoundError):
+            data = {}
+        self._dict_cache[name] = data
+        return data
+
+    async def _save_dict(self, name: str, data: dict) -> None:
+        """写回 dict 型配置（原子替换 + 更新缓存）。"""
+        f = self._file(name)
+        self._dict_cache[name] = data
+        await asyncio.to_thread(UserStore._write_json, f, data)
 
     def is_enabled(self, store_name: str, group_id: str) -> bool:
         """检查某个功能在指定群是否启用。"""
@@ -263,46 +283,30 @@ class GroupConfigStore:
 
     def get_group_game_mode(self, group_id: str) -> str:
         """获取群默认游戏模式。"""
-        f = self._file("game_mode")
-        try:
-            data = json.loads(f.read_text("utf-8-sig"))
-            return data.get(group_id, "maimai")
-        except (json.JSONDecodeError, OSError, FileNotFoundError):
-            return "maimai"
+        return self._load_dict("game_mode").get(group_id, "maimai")
 
     async def set_group_game_mode(self, group_id: str, game: str) -> None:
-        f = self._file("game_mode")
-        try:
-            data = json.loads(f.read_text("utf-8-sig"))
-        except (json.JSONDecodeError, OSError, FileNotFoundError):
-            data = {}
-        data[group_id] = game
-        await asyncio.to_thread(UserStore._write_json, f, data)
+        """设置群默认游戏模式（读改写加锁，避免多群并发覆盖）。"""
+        async with self._lock:
+            data = self._load_dict("game_mode")
+            data[group_id] = game
+            await self._save_dict("game_mode", data)
 
     # --- 查分器选择（群级） ---
 
     def get_prober(self, game: str, group_id: str | None = None) -> str:
         """获取查分器。返回 "divingfish" 或 "lxns"。"""
-        # 个人设置
         if group_id:
-            f = self._file("prober")
-            try:
-                data = json.loads(f.read_text("utf-8-sig"))
-                key = f"{group_id}:{game}"
-                if key in data:
-                    return data[key]
-            except (json.JSONDecodeError, OSError, FileNotFoundError):
-                pass
-        # 默认
+            key = f"{group_id}:{game}"
+            data = self._load_dict("prober")
+            if key in data:
+                return data[key]
         return "lxns" if game == "chunithm" else "divingfish"
 
     async def set_prober(self, game: str, prober: str, group_id: str | None = None) -> None:
-        """设置查分器。"""
-        f = self._file("prober")
-        try:
-            data = json.loads(f.read_text("utf-8-sig"))
-        except (json.JSONDecodeError, OSError, FileNotFoundError):
-            data = {}
+        """设置查分器（读改写加锁，避免多群并发覆盖）。"""
         key = f"{group_id}:{game}" if group_id else f"global:{game}"
-        data[key] = prober
-        await asyncio.to_thread(UserStore._write_json, f, data)
+        async with self._lock:
+            data = self._load_dict("prober")
+            data[key] = prober
+            await self._save_dict("prober", data)
