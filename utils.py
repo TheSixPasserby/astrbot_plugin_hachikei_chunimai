@@ -102,3 +102,20 @@ def extract_at_targets(event: AstrMessageEvent) -> list[str]:
         for m in _AT_PATTERN.finditer(event.get_message_str()):
             targets.append(m.group(1))
     return targets
+
+
+def make_proxy(url: str | None) -> str | None:
+    """把配置里的代理地址规范化，供 aiohttp 的 ``proxy=`` 使用。
+
+    - ``None`` / ``""`` / 空白 → 返回 ``None``（直连）。
+    - ``host`` / ``host:port`` → 补全 ``http://`` 前缀。
+    - 已含 ``scheme://`` → 原样返回。
+    """
+    if not url:
+        return None
+    url = url.strip()
+    if not url:
+        return None
+    if "://" not in url:
+        url = "http://" + url
+    return url
