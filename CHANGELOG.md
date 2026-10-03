@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.9 (2026-10-03)
+
+### 重构
+- 从 `main.py` 拆出同步数据到 `command/sync.py`（`SyncService`）
+- `syncdata` 命令与 SGID 等待状态下沉到 service
+- 清理 `main.py` 未使用导入（`asyncio`）
+- `main.py` 1003 → 924 行
+
+### 清理
+- 删除 GitHub Actions CI workflow（`.github/workflows/ci.yml`）与 `pytest.ini`
+
 ## v0.2.8 (2026-10-03)
 
 ### 重构

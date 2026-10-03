@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 import time
 
@@ -30,6 +29,7 @@ from .command.help import help_handler, admin_help_handler
 from .command.fun import daily_fortune_handler, mai_what_handler, random_song_handler
 from .command.account import AccountService
 from .command.admin import AdminService
+from .command.sync import SyncService
 from .command.mai_score import (
     mai_b50_handler, mai_ginfo_handler, mai_minfo_handler, mai_my_ranking_handler,
     mai_ranking_handler, mai_score_calc_handler, mai_score_line_handler,
@@ -53,7 +53,7 @@ from .utils import is_group_message
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.2.8",
+    "0.2.9",
     "",
 )
 class MaiChuPlugin(Star):
@@ -85,6 +85,14 @@ class MaiChuPlugin(Star):
 
         # 账号绑定服务（封装 OAuth / 水鱼 Token 等待状态）
         self.account = AccountService(self.user_store, self.group_store, self.config, self.lxns)
+        # 同步服务（封装 SGWCMAID 二维码同步）
+        self.sync = SyncService(
+            user_store=self.user_store,
+            get_qr_sync=lambda: self._qr_sync,
+            get_lxns_token=self._get_lxns_token,
+            user_key_of=self._user_key,
+            message=lambda event, text: MessageEventResult().message(text),
+        )
         self.admin = AdminService(
             user_store=self.user_store,
             group_store=self.group_store,
@@ -98,8 +106,6 @@ class MaiChuPlugin(Star):
             user_key_of=self._user_key,
             message=lambda event, text: MessageEventResult().message(text),
         )
-        # 同步数据等待状态: {user_key: (prober, expire_timestamp)}
-        self._pending_sync: dict[str, tuple[str, float]] = {}
 
         # 管理员 ID
         self.admin_ids: list[str] = []
@@ -781,98 +787,13 @@ class MaiChuPlugin(Star):
 
     @command("syncdata", alias={"同步数据"})
     async def _sync_data(self, event: AstrMessageEvent):
-        """同步街机数据到查分器。用法：同步数据 水鱼/落雪"""
-        args = event.get_message_str().strip().split(maxsplit=1)
-        target = args[1].strip().lower() if len(args) > 1 else ""
+        async for r in self.sync.start(event):
+            yield r
 
-        user_key = self._user_key(event)
-        lxns_token = await self._get_lxns_token(event)
-        df_token = self.user_store.get_divingfish_token(user_key)
+    async def _try_sync_sgid(self, event: AstrMessageEvent, sgid: str = ""):
+        async for r in self.sync.try_sync_sgid(event, sgid):
+            yield r
 
-        if target in ("水鱼", "divingfish", "df"):
-            if not df_token:
-                yield self._message("⚠️ 未绑定水鱼查分器，请先发送「绑定水鱼 <Token>」。")
-                return
-            prober = "divingfish"
-            label = "水鱼"
-        elif target in ("落雪", "lxns"):
-            if not lxns_token:
-                yield self._message("⚠️ 未绑定落雪查分器，请先发送「绑定落雪」。")
-                return
-            prober = "lxns"
-            label = "落雪"
-        else:
-            yield self._message("用法：同步数据 水鱼/落雪")
-            return
-
-        self._pending_sync[user_key] = (prober, time.time() + 3 * 60)
-        yield self._message(
-            f"🔗 请在 **3 分钟内** 发送街机二维码（SGWCMAID...），将同步到{label}查分器。"
-        )
-
-        # 3 分钟超时提醒
-        async def _timeout():
-            await asyncio.sleep(3 * 60)
-            if self._pending_sync.pop(user_key, None):
-                try:
-                    result = event.make_result().message("⏰ 同步超时，请重新发送「同步数据 水鱼/落雪」。")
-                    await event.send(result)
-                except Exception:
-                    pass
-        asyncio.create_task(_timeout())
-
-    async def _try_sync_sgid(self, event: AstrMessageEvent, sgid: str):
-        """等待中的同步：收到 SGID 后执行同步。"""
-        from .qr_sync import extract_sgid, is_valid_sgid
-
-        if not sgid:
-            sgid = extract_sgid(event.get_message_str()) or ""
-        if not sgid:
-            return
-
-        user_key = self._user_key(event)
-        pending = self._pending_sync.get(user_key)
-        if not pending or time.time() > pending[1]:
-            self._pending_sync.pop(user_key, None)
-            return
-
-        # 只验证格式，不检查 SGID 新鲜度（可能在二维码上停留了几分钟）
-        if not is_valid_sgid(sgid):
-            logger.warning(f"[sync] SGID 格式无效: {sgid[:20]}...")
-            return
-
-        prober = pending[0]
-        del self._pending_sync[user_key]
-
-        lxns_token = await self._get_lxns_token(event)
-        df_token = self.user_store.get_divingfish_token(user_key)
-        label = "水鱼" if prober == "divingfish" else "落雪"
-        logger.info(f"[sync] 开始同步: prober={prober}, user={user_key}")
-
-        yield self._message(f"🎮 正在同步成绩到{label}，请稍候...")
-
-        try:
-            if prober == "lxns":
-                result = await self._qr_sync.sync_to_lxns(sgid, lxns_token)
-            else:
-                result = await self._qr_sync.sync_to_divingfish(sgid, df_token)
-
-            lines = [
-                f"✅ 同步成功！",
-                f"  玩家: {result.player_name}" if result.player_name else "",
-                f"  Rating: {result.rating}",
-                f"  同步曲数: {result.score_count}",
-            ]
-            if result.warning:
-                lines.append(f"  ⚠️ {result.warning}")
-            yield self._message("\n".join(lines))
-
-        except Exception as e:
-            err_msg = self._qr_sync.describe_error(e)
-            logger.exception("同步数据失败")
-            yield self._message(f"❌ {err_msg}")
-
-    # ================================================================
     # 正则匹配（不需要唤醒前缀）
     # ================================================================
 
@@ -906,11 +827,11 @@ class MaiChuPlugin(Star):
         text = event.get_message_str().strip()
 
         # 同步数据等待中的 SGWCMAID 检测
-        if self._qr_sync and self._pending_sync.get(self._user_key(event)) and "SGWCMAID" in text.upper():
+        if self.sync.qr_sync and self.sync.has_pending(self._user_key(event)) and "SGWCMAID" in text.upper():
             from .qr_sync import extract_sgid
             sgid = extract_sgid(text)
             if sgid:
-                async for r in self._try_sync_sgid(event, sgid):
+                async for r in self.sync.try_sync_sgid(event, sgid):
                     yield r
                 return
 
