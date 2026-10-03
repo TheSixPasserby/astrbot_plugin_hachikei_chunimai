@@ -28,6 +28,7 @@ from .command.mai_guess import (
 )
 from .command.help import help_handler, admin_help_handler
 from .command.fun import daily_fortune_handler, mai_what_handler, random_song_handler
+from .command.account import AccountService
 from .command.mai_score import (
     mai_b50_handler, mai_ginfo_handler, mai_minfo_handler, mai_my_ranking_handler,
     mai_ranking_handler, mai_score_calc_handler, mai_score_line_handler,
@@ -53,7 +54,7 @@ GAME_LABELS = {"maimai": "maimai DX", "chunithm": "CHUNITHM"}
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.2.6",
+    "0.2.7",
     "",
 )
 class MaiChuPlugin(Star):
@@ -83,14 +84,10 @@ class MaiChuPlugin(Star):
         self.alias_push = AliasPushService(self.api, self.config.get("alias_push_uuid", ""))
         self._qr_sync = None  # QRSyncService，延迟初始化（需要 maimai-py）
 
-        # OAuth 绑定等待状态: {user_key: expire_timestamp}
-        self._pending_oauth: dict[str, float] = {}
-        # token 失效的用户（插件重载时检测）
-        self._expired_tokens: set[str] = set()
+        # 账号绑定服务（封装 OAuth / 水鱼 Token 等待状态）
+        self.account = AccountService(self.user_store, self.group_store, self.config, self.lxns)
         # 同步数据等待状态: {user_key: (prober, expire_timestamp)}
         self._pending_sync: dict[str, tuple[str, float]] = {}
-        # 水鱼 Token 等待状态: {user_key: expire_timestamp}
-        self._pending_df: dict[str, float] = {}
 
         # 管理员 ID
         self.admin_ids: list[str] = []
@@ -188,7 +185,7 @@ class MaiChuPlugin(Star):
                 else:
                     logger.debug(f"落雪 token 验证跳过（非认证错误）({user_key}): {e}")
         if expired:
-            self._expired_tokens = set(expired)
+            self.account._expired_tokens = set(expired)
             logger.warning(f"落雪 token 失效 {len(expired)} 个，已自动清除")
         else:
             logger.info("所有落雪 token 验证通过")
@@ -354,296 +351,34 @@ class MaiChuPlugin(Star):
 
     @command("绑定QQ")
     async def _bind_qq(self, event: AstrMessageEvent):
-        args = event.get_message_str().strip().split()
-        if len(args) < 2 or not args[1].isdigit():
-            yield self._message("用法：绑定QQ <QQ号>\n绑定后查分命令将使用该 QQ 号查询。")
-            return
-        qq = args[1].strip()
-        user_key = self._user_key(event)
-        await self.user_store.set_qq(user_key, qq)
-        yield self._message(f"✅ 已绑定 QQ: {qq}")
+        async for r in self.account.bind_qq(event):
+            yield r
 
     @command("bindlxns", alias={"绑定落雪"})
     async def _bind_lxns(self, event: AstrMessageEvent):
-        """落雪 OAuth 绑定 — 生成链接，等待用户发送密钥。"""
-        client_id = self.config.get("lxns_client_id", "")
-        client_secret = self.config.get("lxns_client_secret", "")
-
-        if not client_id or not client_secret:
-            yield self._message(
-                "⚠️ 管理员未配置落雪 OAuth 应用。\n"
-                "请在插件配置中填写 `lxns_client_id` 和 `lxns_client_secret`。"
-            )
-            return
-
-        redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-        oauth_url = (
-            f"https://maimai.lxns.net/oauth/authorize"
-            f"?response_type=code"
-            f"&client_id={client_id}"
-            f"&redirect_uri={redirect_uri}"
-            f"&scope=read_user_profile+read_player+write_player"
-        )
-
-        user_key = self._user_key(event)
-        self._pending_oauth[user_key] = time.time() + 5 * 60
-
-        yield self._message(
-            f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
-            f"授权后页面会显示一串密钥，请在 **5 分钟内** 直接发送到聊天窗口即可。"
-        )
-
-        # 5 分钟超时提醒
-        async def _timeout():
-            await asyncio.sleep(5 * 60)
-            if self._pending_oauth.pop(user_key, None):
-                try:
-                    result = event.make_result().message("⏰ 落雪绑定超时，请重新发送 `绑定落雪` 获取新链接。")
-                    await event.send(result)
-                except Exception:
-                    pass
-        asyncio.create_task(_timeout())
-
-    async def _try_oauth_code(self, event: AstrMessageEvent):
-        """检测用户是否在等待发送 OAuth 密钥。如果是，尝试交换。"""
-        user_key = self._user_key(event)
-        expire = self._pending_oauth.get(user_key)
-        if not expire:
-            return
-        if time.time() > expire:
-            del self._pending_oauth[user_key]
-            return
-
-        text = event.get_message_str().strip()
-        # 密钥格式：通常 30 位左右的字母数字
-        if len(text) < 10 or len(text) > 60 or " " in text:
-            return
-
-        client_id = self.config.get("lxns_client_id", "")
-        client_secret = self.config.get("lxns_client_secret", "")
-        redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-        logger.info(f"[oauth] 用户 {user_key} 尝试交换 code")
-
-        try:
-            access_token, refresh_token = await self.lxns.oauth_exchange(text, client_id, client_secret, redirect_uri)
-        except Exception as e:
-            logger.debug(f"OAuth 交换尝试失败（非密钥消息）: {e}")
-            return
-
-        del self._pending_oauth[user_key]
-        self._expired_tokens.discard(user_key)
-        await self.user_store.set_lxns_token(
-            user_key, access_token, refresh_token, expires_at=time.time() + 15 * 60
-        )
-
-        # 自动切换舞萌查分器为落雪
-        gid = self._group_id(event)
-        if gid:
-            await self.group_store.set_prober("maimai", "lxns", gid)
-
-        yield self._message(
-            "✅ 落雪查分器绑定成功！已自动切换舞萌查分器为落雪。\n"
-            "如需使用水鱼查分器，请发送：更改查分器 水鱼"
-        )
+        async for r in self.account.bind_lxns(event):
+            yield r
 
     @command("unbindlxns", alias={"解绑落雪"})
     async def _unbind_lxns(self, event: AstrMessageEvent):
-        """解绑落雪查分器。"""
-        user_key = self._user_key(event)
-        token = self.user_store.get_lxns_token(user_key)
-        if not token:
-            yield self._message("你还没有绑定落雪查分器。")
-            return
-        await self.user_store.remove_lxns_token(user_key)
-        yield self._message("✅ 已解绑落雪查分器。")
+        async for r in self.account.unbind_lxns(event):
+            yield r
 
     @command("binddf", alias={"绑定水鱼"})
     async def _bind_divingfish(self, event: AstrMessageEvent):
-        """绑定水鱼 Import-Token。"""
-        args = event.get_message_str().strip().split(maxsplit=1)
-
-        # 绑定水鱼 <token> — 直接绑定
-        if len(args) >= 2:
-            token = args[1].strip()
-            if len(token) < 50:
-                yield self._message("Token 格式不正确，请检查后重试。")
-                return
-            user_key = self._user_key(event)
-            async for r in self._df_bind_and_switch(event, user_key, token):
-                yield r
-            return
-
-        # 绑定水鱼（无参数）— 引导获取 Token，监听 5 分钟
-        user_key = self._user_key(event)
-        self._pending_df[user_key] = time.time() + 5 * 60
-        yield self._message(
-            "🔗 请前往水鱼查分器获取 Import-Token：\n"
-            "https://maimai.diving-fish.com/\n\n"
-            "1. 登录查分器\n"
-            "2. 点击右上角「编辑个人资料」\n"
-            "3. 复制「成绩导入 Token」\n"
-            "4. 在 **5 分钟内** 直接发送到聊天窗口即可"
-        )
-
-        async def _timeout():
-            await asyncio.sleep(5 * 60)
-            if self._pending_df.pop(user_key, None):
-                try:
-                    result = event.make_result().message("⏰ 水鱼绑定超时，请重新发送「绑定水鱼」。")
-                    await event.send(result)
-                except Exception:
-                    pass
-        asyncio.create_task(_timeout())
-
-    async def _try_df_token(self, event: AstrMessageEvent) -> bool:
-        """检测用户是否在等待发送水鱼 Token。"""
-        user_key = self._user_key(event)
-        expire = self._pending_df.get(user_key)
-        if not expire or time.time() > expire:
-            self._pending_df.pop(user_key, None)
-            return False
-
-        text = event.get_message_str().strip()
-        # QQ Official 消息中 @bot 会混入文本，去掉 @mention 部分
-        text = re.sub(r"@\S+\s*", "", text).strip()
-        if len(text) < 50 or len(text) > 300 or " " in text:
-            return False
-
-        del self._pending_df[user_key]
-        await self.user_store.set_divingfish_token(user_key, text)
-        gid = self._group_id(event)
-        if gid:
-            await self.group_store.set_prober("maimai", "divingfish", gid)
-        self._pending_df_message = (
-            "✅ 水鱼查分器绑定成功！已自动切换舞萌查分器为水鱼。\n"
-            "如需使用落雪查分器，请发送：更改查分器 落雪"
-        )
-        return True
-
-    async def _df_bind_and_switch(self, event: AstrMessageEvent, user_key: str, token: str) -> None:
-        """绑定水鱼 Token 并自动切换查分器。"""
-        await self.user_store.set_divingfish_token(user_key, token)
-        gid = self._group_id(event)
-        if gid:
-            await self.group_store.set_prober("maimai", "divingfish", gid)
-        yield self._message(
-            "✅ 水鱼查分器绑定成功！已自动切换舞萌查分器为水鱼。\n"
-            "如需使用落雪查分器，请发送：更改查分器 落雪"
-        )
+        async for r in self.account.bind_divingfish(event):
+            yield r
 
     @command("unbinddf", alias={"解绑水鱼"})
     async def _unbind_divingfish(self, event: AstrMessageEvent):
-        """解绑水鱼 Import-Token。"""
-        user_key = self._user_key(event)
-        token = self.user_store.get_divingfish_token(user_key)
-        if not token:
-            yield self._message("你还没有绑定水鱼查分器。")
-            return
-        await self.user_store.remove_divingfish_token(user_key)
-        yield self._message("✅ 已解绑水鱼查分器。")
+        async for r in self.account.unbind_divingfish(event):
+            yield r
 
     @command("account", alias={"绑定账号", "账号状态", "我的绑定"})
     async def _account_status(self, event: AstrMessageEvent):
-        """查看当前账号绑定状态。"""
-        user_key = self._user_key(event)
+        async for r in self.account.account_status(event):
+            yield r
 
-        # QQ 绑定
-        qq = self.user_store.get_qq(user_key)
-        qq_status = f"✅ {qq}" if qq else "❌ 未绑定"
-
-        # 落雪 OAuth
-        lxns_token = self.user_store.get_lxns_token(user_key)
-        token_expired = user_key in self._expired_tokens
-        if lxns_token:
-            lxns_status = "✅ 已授权"
-        elif token_expired:
-            lxns_status = "⚠️ 已失效"
-        else:
-            lxns_status = "❌ 未绑定"
-
-        # 水鱼（DivingFish）
-        df_token = self.user_store.get_divingfish_token(user_key)
-        divingfish_status = "✅ 已绑定" if df_token else "❌ 未绑定"
-
-        lines = [
-            "📋 **账号绑定状态**\n",
-            f"| 项目 | 状态 |",
-            f"|------|------|",
-            f"| QQ 号 | {qq_status} |",
-            f"| 落雪查分器 | {lxns_status} |",
-            f"| 水鱼查分器 | {divingfish_status} |",
-            "",
-        ]
-
-        if token_expired:
-            lines.append("⚠️ **落雪授权已失效**，请重新绑定。")
-            lines.append("")
-
-        lines.extend([
-            "---",
-            "**绑定指引：**",
-            "• `绑定QQ <QQ号>` — 绑定 QQ",
-            "• `绑定落雪` — 授权落雪查分器（推荐）",
-            "• `绑定水鱼` — 获取水鱼 Import-Token",
-            "• `解绑落雪` / `解绑水鱼` — 取消授权",
-        ])
-        if not qq and not lxns_token:
-            lines.append("")
-            lines.append("⚠️ 你还没有绑定任何查分方式，请先绑定 QQ 或落雪。")
-
-        yield self._message("\n".join(lines))
-
-    def _get_qq(self, event: AstrMessageEvent) -> int | None:
-        """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
-        # 1. 尝试从 @提及 获取
-        try:
-            from astrbot.api.message_components import At
-            for comp in event.get_messages():
-                if isinstance(comp, At):
-                    return int(comp.qq)
-        except Exception:
-            pass
-        # 2. 从绑定记录获取
-        user_key = self._user_key(event)
-        qq = self.user_store.get_qq(user_key)
-        if qq and qq.isdigit():
-            return int(qq)
-        return None
-
-    async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
-        """获取用户的有效落雪 token：过期时才刷新，不无条件刷新。"""
-        user_key = self._user_key(event)
-        token = self.user_store.get_lxns_token(user_key)
-        if not token:
-            return ""
-
-        # access_token 有效期内直接复用（提前 60s 预留缓冲），不刷新
-        expires_at = self.user_store.get_lxns_expires_at(user_key)
-        if expires_at and time.time() < expires_at - 60:
-            return token
-
-        # 过期/未知时用 refresh_token 换新 token
-        refresh_token = self.user_store.get_lxns_refresh_token(user_key)
-        if refresh_token:
-            client_id = self.config.get("lxns_client_id", "")
-            client_secret = self.config.get("lxns_client_secret", "")
-            if client_id and client_secret:
-                try:
-                    new_token, new_refresh = await self.lxns.oauth_refresh(
-                        refresh_token, client_id, client_secret
-                    )
-                    # Lxns access_token 有效期为 15 分钟
-                    new_expires = time.time() + 15 * 60
-                    await self.user_store.set_lxns_token(
-                        user_key, new_token, new_refresh, expires_at=new_expires
-                    )
-                    return new_token
-                except Exception as e:
-                    logger.debug(f"OAuth token 刷新失败，使用现有 token: {e}")
-
-        return token
-
-    # ================================================================
     # 帮助
     # ================================================================
 
@@ -1321,19 +1056,19 @@ class MaiChuPlugin(Star):
         except AttributeError:
             pass
 
-        # OAuth 密钥监听（15 分钟内直接发送密钥）
-        if self._pending_oauth.get(self._user_key(event)):
-            async for r in self._try_oauth_code(event):
+        # OAuth 密钥监听（5 分钟内直接发送密钥）
+        if self.account._pending_oauth.get(self._user_key(event)):
+            async for r in self.account.try_oauth_code(event):
                 yield r
             return
 
         # 水鱼 Token 监听（5 分钟内直接发送 Token）
-        if self._pending_df.get(self._user_key(event)):
-            if await self._try_df_token(event):
-                msg = getattr(self, '_pending_df_message', None)
+        if self.account._pending_df.get(self._user_key(event)):
+            if await self.account.try_df_token(event):
+                msg = self.account._pending_df_message
                 if msg:
                     yield self._message(msg)
-                    self._pending_df_message = None
+                    self.account._pending_df_message = None
                 return
 
         text = event.get_message_str().strip()

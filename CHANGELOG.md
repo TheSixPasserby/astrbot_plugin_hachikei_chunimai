@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.7 (2026-10-03)
+
+### 重构
+- 从 `main.py` 拆出账号绑定到 `command/account.py`（`AccountService`）
+- 绑定相关 pending 状态（OAuth 密钥 / 水鱼 Token）从 main 迁移到 service
+- 命令方法变为薄委托，`main.py` 1436 → 1171 行
+
 ## v0.2.6 (2026-10-03)
 
 ### 重构
