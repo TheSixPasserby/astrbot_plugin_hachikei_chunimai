@@ -242,7 +242,7 @@ terminate()                    # stop alias push → close api → close lxns
 4. 数据加载失败后无 readiness 状态。
 5. `GroupConfigStore.set_group_game_mode/set_prober` 的 read-modify-write 无锁（`get_group_game_mode/get_prober` 直读文件）。
 6. Lxns token 刷新：`_get_lxns_token()` 每次业务命令无条件 refresh。
-7. async generator / `await` / `return` 结构（`_try_oauth_code` 是 async generator，`_on_message` 用 `async for` 调用 ✅；但需系统复查）。
+7. async generator / `await` / `return` 结构 —— 已系统性复查（1.8）：无 `await async_generator()`、无 async generator `return <value>` 吞输出、所有 `async for` 目标均含 `yield`。✅
 8. `metadata.yaml` 0.2.2 vs `@register` 0.1.0。
 9. `ginfo` 仍用 base64 路径（`image_to_base64`），未与未来统一图片发送方式对齐。
 10. alias push WebSocket 只 `logger.info`，未广播到群。
