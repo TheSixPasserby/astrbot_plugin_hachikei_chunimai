@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.8 (2026-10-03)
+
+### 重构
+- 从 `main.py` 拆出管理命令到 `command/admin.py`（`AdminService`）
+- 切换游戏/查分器/别名源、群功能开关、数据更新、插件状态下沉到 service
+- 清理 `main.py` 未使用常量（`VALID_GAMES`、`GAME_LABELS`）
+- `main.py` 1171 → 1003 行
+
 ## v0.2.7 (2026-10-03)
 
 ### 重构
