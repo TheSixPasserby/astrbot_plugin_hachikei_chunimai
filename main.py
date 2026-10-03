@@ -53,7 +53,7 @@ GAME_LABELS = {"maimai": "maimai DX", "chunithm": "CHUNITHM"}
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.1.0",
+    "0.2.2",
     "",
 )
 class MaiChuPlugin(Star):
