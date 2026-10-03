@@ -6,6 +6,8 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
 
+from .utils import make_proxy
+
 from .errors import (
     UserNotFoundError, UserNotExistsError, UserDisabledQueryError,
     TokenError, TokenDisableError, TokenNotFoundError,
@@ -24,15 +26,16 @@ class MaimaiAPI:
     MaiProberAPI = "https://www.diving-fish.com/api/maimaidxprober"
     MaiAliasAPI = "https://www.yuzuchan.moe/api/maimaidx"
 
-    def __init__(self, timeout: int = 30) -> None:
+    def __init__(self, timeout: int = 30, http_proxy: str | None = None) -> None:
         self._timeout = timeout
+        self._http_proxy = make_proxy(http_proxy)
         self.token: str | None = None
         self.headers: dict[str, str] | None = None
         self.use_proxy: bool = False
         self._session: ClientSession | None = None
 
-    def configure(self, token: str = "", proxy: bool = False) -> None:
-        self.use_proxy = proxy
+    def configure(self, token: str = "", use_proxy: bool = False) -> None:
+        self.use_proxy = use_proxy
         self.token = token
         if token:
             self.headers = {"developer-token": token}
@@ -49,7 +52,10 @@ class MaimaiAPI:
 
     async def _get_session(self) -> ClientSession:
         if self._session is None or self._session.closed:
-            self._session = ClientSession(timeout=ClientTimeout(total=self._timeout))
+            self._session = ClientSession(
+                timeout=ClientTimeout(total=self._timeout),
+                trust_env=self._http_proxy is None,
+            )
         return self._session
 
     async def close(self) -> None:
@@ -61,7 +67,8 @@ class MaimaiAPI:
     ) -> dict | list:
         session = await self._get_session()
         async with session.request(
-            method, self.prober_url + endpoint, headers=self.headers, **kwargs
+            method, self.prober_url + endpoint, headers=self.headers,
+            proxy=self._http_proxy, **kwargs
         ) as res:
             if res.status == 200:
                 return await res.json()
@@ -89,7 +96,7 @@ class MaimaiAPI:
     async def _request_alias(self, method: str, endpoint: str, **kwargs: Any) -> APIResult:
         session = await self._get_session()
         async with session.request(
-            method, self.alias_url + endpoint, **kwargs
+            method, self.alias_url + endpoint, proxy=self._http_proxy, **kwargs
         ) as res:
             if res.status == 200:
                 data = await res.json()
