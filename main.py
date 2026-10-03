@@ -168,7 +168,9 @@ class MaiChuPlugin(Star):
                     new_token, new_refresh = await self.lxns.oauth_refresh(
                         refresh_token, client_id, client_secret
                     )
-                    await self.user_store.set_lxns_token(user_key, new_token, new_refresh)
+                    await self.user_store.set_lxns_token(
+                        user_key, new_token, new_refresh, expires_at=time.time() + 15 * 60
+                    )
                     token = new_token
                     logger.debug(f"落雪 token 已刷新 ({user_key})")
                 except Exception as e:
@@ -430,7 +432,9 @@ class MaiChuPlugin(Star):
 
         del self._pending_oauth[user_key]
         self._expired_tokens.discard(user_key)
-        await self.user_store.set_lxns_token(user_key, access_token, refresh_token)
+        await self.user_store.set_lxns_token(
+            user_key, access_token, refresh_token, expires_at=time.time() + 15 * 60
+        )
 
         # 自动切换舞萌查分器为落雪
         gid = self._group_id(event)
@@ -607,13 +611,18 @@ class MaiChuPlugin(Star):
         return None
 
     async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
-        """获取用户的有效落雪 token：OAuth 绑定 + 自动刷新。"""
+        """获取用户的有效落雪 token：过期时才刷新，不无条件刷新。"""
         user_key = self._user_key(event)
         token = self.user_store.get_lxns_token(user_key)
         if not token:
             return ""
 
-        # 尝试刷新：用 refresh_token 换新的 access_token
+        # access_token 有效期内直接复用（提前 60s 预留缓冲），不刷新
+        expires_at = self.user_store.get_lxns_expires_at(user_key)
+        if expires_at and time.time() < expires_at - 60:
+            return token
+
+        # 过期/未知时用 refresh_token 换新 token
         refresh_token = self.user_store.get_lxns_refresh_token(user_key)
         if refresh_token:
             client_id = self.config.get("lxns_client_id", "")
@@ -623,7 +632,11 @@ class MaiChuPlugin(Star):
                     new_token, new_refresh = await self.lxns.oauth_refresh(
                         refresh_token, client_id, client_secret
                     )
-                    await self.user_store.set_lxns_token(user_key, new_token, new_refresh)
+                    # Lxns access_token 有效期为 15 分钟
+                    new_expires = time.time() + 15 * 60
+                    await self.user_store.set_lxns_token(
+                        user_key, new_token, new_refresh, expires_at=new_expires
+                    )
                     return new_token
                 except Exception as e:
                     logger.debug(f"OAuth token 刷新失败，使用现有 token: {e}")
