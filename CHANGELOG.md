@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.5 (2026-10-03)
+
+### 新增
+- CHUNITHM B30 图片渲染 `render/b30.py`（Best 30 / Selection 10 / New Best 20）
+- `cover.py` 支持 CHUNITHM 封面源（Lxns jacket，`static/cover_chu`）
+- B30 图片优先发送，渲染失败自动回退 Markdown
+- 本地预览工具 `tools/preview_b30.py`
+
 ## v0.2.4 (2026-10-03)
 
 ### 新增

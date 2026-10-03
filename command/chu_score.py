@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING, Any
 from ..errors import MaimaiError, describe_error
 from ..chu_data import ChuDataManager, chu_rank_label, CHU_FC_LABELS, CHU_CHAIN_LABELS, CHU_CLEAR_LABELS
 from ..utils import fmt_rate as _fmt_rate
+from ..cover import CoverCache
+from ..unified import from_chunithm
+from ..image_utils import image_to_base64
 
 try:
     from astrbot.api import logger
@@ -18,6 +21,43 @@ except ImportError:
 if TYPE_CHECKING:
     from astrbot.api.event import AstrMessageEvent
     from ..lxns_client import LxnsAPI
+
+
+
+
+async def _render_b30_image(
+    player_name: str,
+    rating: float,
+    sections: list[tuple[str, list]],
+    *,
+    covers: dict[int, object] | None = None,
+) -> str | None:
+    """渲染 B30 图片为 base64，失败返回 None（回退 Markdown）。"""
+    import asyncio
+
+    def _sync() -> str | None:
+        try:
+            from ..render.b30 import render_b30
+            cov = covers or {}
+            img = render_b30(player_name, rating, sections, cov)
+            return image_to_base64(img)
+        except Exception as e:
+            logger.warning(f"B30 图片渲染失败: {e}")
+            return None
+
+    return await asyncio.to_thread(_sync)
+
+
+async def _prefetch_chu_covers(
+    cover_cache: CoverCache | None,
+    scores: list,
+) -> dict[int, object]:
+    """并发预取 CHUNITHM 封面，返回 ``music_id -> PIL.Image``。"""
+    if not cover_cache:
+        return {}
+    ids = [s.music_id for s in scores]
+    imgs = await cover_cache.get_many(ids)
+    return {mid: img for mid, img in zip(ids, imgs)}
 
 
 async def chu_b30_handler(
@@ -98,6 +138,30 @@ async def chu_b30_handler(
 
         name = player.get("name", "未知")
         rating = player.get("rating", 0)
+
+        # 统一成绩模型 + 封面
+        def _to_unified(item: dict):
+            return from_chunithm(
+                item, ds=ds_map.get((int(item.get("id", 0)), int(item.get("level_index", 3))))
+            )
+
+        best_scores = [_to_unified(b) for b in bests]
+        selection_scores = [_to_unified(s_) for s_ in selections]
+        new_best_scores = [_to_unified(n) for n in new_bests]
+
+        cover_dir = data_mgr._dir / "cover_chu"
+        cover_cache = CoverCache(cover_dir, game="chunithm", lxns=lxns, http_proxy=getattr(lxns, "_http_proxy", None))
+        all_scores = best_scores + selection_scores + new_best_scores
+        covers = await _prefetch_chu_covers(cover_cache, all_scores)
+
+        b64 = await _render_b30_image(
+            name, float(rating or 0),
+            [("Best 30", best_scores), ("Selection 10", selection_scores), ("New Best 20", new_best_scores)],
+            covers=covers,
+        )
+        if b64:
+            yield event.make_result().base64_image(b64)
+            return
 
         lines = [f"🎵 {name} 的 CHUNITHM Rating 构成"]
         lines.append(f"总 Rating: {rating}")

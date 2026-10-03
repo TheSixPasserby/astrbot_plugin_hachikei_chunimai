@@ -208,7 +208,7 @@ terminate()                    # stop alias push → close api → close lxns
 |------------|---------|
 | 「CHUNITHM 牌桌/进度」🚧 | 已标 🚧，实际无实现 |
 | 「CHUNITHM 别名投票」🚧 | 已标 🚧，实际无实现 |
-| 「图片版分表」✅ | maimai `b50` 已实现图片版（B30 待做），失败自动回退 Markdown |
+| 「图片版分表」✅ | maimai `b50` 与 CHUNITHM `b30` 均已实现图片版，失败自动回退 Markdown |
 | 「猜歌游戏」✅ | 可用，但 `enable_guess_game` 配置未生效 |
 
 ### 实际存在但 README 未写

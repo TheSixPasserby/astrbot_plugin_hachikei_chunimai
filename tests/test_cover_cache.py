@@ -62,3 +62,9 @@ def test_candidate_urls_std(tmp_path):
     cache = _make_cache(tmp_path)
     urls = cache._candidate_urls(834)
     assert urls == ["https://www.diving-fish.com/covers/834.png"]
+
+
+def test_chunithm_candidate_urls(tmp_path):
+    cache = CoverCache(tmp_path, game="chunithm")
+    urls = cache._candidate_urls(800)
+    assert urls == ["https://assets2.lxns.net/chunithm/jacket/800.png"]
