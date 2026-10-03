@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.4 (2026-10-03)
+
+### 新增
+- 统一成绩模型 `unified.py`（DivingFish / Lxns maimai / CHUNITHM → `UnifiedScore`）
+- 封面永久缓存 `cover.py`（并发限制、DX/SD ID fallback、失败占位图、代理支持）
+- maimai B50 图片渲染 `render/b50.py`（水鱼 / 落雪两个查分器共用）
+- B50 图片优先发送，渲染失败自动回退 Markdown 文本
+- 本地预览工具 `tools/preview_b50.py`
+
 ## v0.2.3 (2026-10-03)
 
 ### 修复

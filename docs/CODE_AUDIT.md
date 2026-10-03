@@ -200,7 +200,7 @@ terminate()                    # stop alias push → close api → close lxns
 | 位置 | 内容 |
 |------|------|
 | `command/alias.py:308` | `# TODO: 遍历群列表并发送`（alias push 未真正广播） |
-| `command/mai_score.py:93` | `# TODO: 生成图片版本（需要 image_gen.py 完善后）` |
+| `command/mai_score.py` | B50 图片版已实现（`render/b50.py` + `cover.py`） |
 
 ### README 宣称支持但实际半成品/未实现
 
@@ -208,7 +208,7 @@ terminate()                    # stop alias push → close api → close lxns
 |------------|---------|
 | 「CHUNITHM 牌桌/进度」🚧 | 已标 🚧，实际无实现 |
 | 「CHUNITHM 别名投票」🚧 | 已标 🚧，实际无实现 |
-| 「图片版分表」❌ | 已标 ❌，`b50`/`b30` 纯 Markdown |
+| 「图片版分表」✅ | maimai `b50` 已实现图片版（B30 待做），失败自动回退 Markdown |
 | 「猜歌游戏」✅ | 可用，但 `enable_guess_game` 配置未生效 |
 
 ### 实际存在但 README 未写

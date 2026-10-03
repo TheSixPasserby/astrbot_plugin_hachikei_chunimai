@@ -9,6 +9,8 @@ from ..errors import MaimaiError, MusicNotPlayError, describe_error
 from ..mai_data import MusicDataManager, DIFF_INDEX_TO_LABEL
 from ..utils import fmt_fc as _fmt_fc, fmt_rate as _fmt_rate
 from ..image_utils import pie_chart, image_to_base64
+from ..cover import CoverCache
+from ..unified import from_divingfish_chart, from_lxns_maimai
 
 try:
     from astrbot.api import logger
@@ -34,6 +36,43 @@ def _extract_qq_from_at(event: AstrMessageEvent) -> int | None:
     return None
 
 
+
+async def _render_b50_image(
+    player_name: str,
+    rating: float,
+    sections: list[tuple[str, list]],
+    *,
+    covers: dict[int, object] | None = None,
+) -> str | None:
+    """渲染 B50 图片为 base64，失败返回 None（回退 Markdown）。"""
+    import asyncio
+
+    def _sync() -> str | None:
+        try:
+            from ..render.b50 import render_b50
+            cov = covers or {}
+            img = render_b50(player_name, rating, sections, cov)
+            return image_to_base64(img)
+        except Exception as e:
+            logger.warning(f"B50 图片渲染失败: {e}")
+            return None
+
+    return await asyncio.to_thread(_sync)
+
+
+async def _prefetch_covers(
+    cover_cache: CoverCache | None,
+    scores: list,
+    music_id_fn,
+) -> dict[int, object]:
+    """并发预取封面，返回 ``music_id -> PIL.Image``。"""
+    if not cover_cache:
+        return {}
+    ids = [music_id_fn(s) for s in scores]
+    imgs = await cover_cache.get_many(ids)
+    return {mid: img for mid, img in zip(ids, imgs)}
+
+
 async def mai_b50_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
@@ -54,8 +93,31 @@ async def mai_b50_handler(
             yield event.plain_result("未找到游玩记录。")
             return
 
-        # 构建 B50 markdown
         name = user_info.nickname or user_info.username or "未知"
+        sd_charts = user_info.charts.sd or []
+        dx_charts = user_info.charts.dx or []
+
+        # 统一成绩模型 + 封面
+        sd_scores = [from_divingfish_chart(c) for c in sd_charts]
+        dx_scores = [from_divingfish_chart(c) for c in dx_charts]
+
+        cover_dir = data_mgr._data_dir / "static" / "cover"
+        cover_cache = CoverCache(cover_dir, http_proxy=getattr(api, "_http_proxy", None))
+        covers = await _prefetch_covers(
+            cover_cache, sd_scores + dx_scores, lambda s: s.music_id
+        )
+
+        # 尝试图片，失败回退 Markdown
+        b64 = await _render_b50_image(
+            name, float(user_info.rating or 0),
+            [("SD Best 35", sd_scores), ("DX Best 15", dx_scores)],
+            covers=covers,
+        )
+        if b64:
+            yield event.make_result().base64_image(b64)
+            return
+
+        # --- Markdown 回退 ---
         lines = [f"# 🎵 {name} 的 Best 50\n"]
         lines.append(f"**Rating: {user_info.rating}**\n")
 
@@ -81,16 +143,14 @@ async def mai_b50_handler(
                 )
             lines.append("")
 
-        _render_table("SD Best 35", user_info.charts.sd or [], 35)
-        _render_table("DX Best 15", user_info.charts.dx or [], 15)
+        _render_table("SD Best 35", sd_charts, 35)
+        _render_table("DX Best 15", dx_charts, 15)
 
-        # 查分器状态
         lines.append("")
         lines.append("——————————————")
         lines.append("由水鱼查分器提供数据")
         lines.append("发送「更改查分器 水鱼/落雪」以切换")
 
-        # TODO: 生成图片版本（需要 image_gen.py 完善后）
         yield event.make_result().use_markdown(True).message("\n".join(lines))
 
     except MaimaiError as e:
@@ -497,6 +557,30 @@ async def lxns_mai_b50_handler(
         dx_total = bests_data.get("dx_total", 0)
         standard = bests_data.get("standard", [])
         dx = bests_data.get("dx", [])
+
+        # 统一成绩模型 + 封面
+        def _to_unified(s: dict):
+            return from_lxns_maimai(
+                s, ds=ds_map.get((int(s.get("id", 0)), int(s.get("level_index", 3))))
+            )
+
+        standard_scores = [_to_unified(s) for s in standard]
+        dx_scores = [_to_unified(s) for s in dx]
+
+        cover_dir = music_data._data_dir / "static" / "cover" if music_data else None
+        cover_cache = CoverCache(cover_dir, lxns=lxns, http_proxy=getattr(lxns, "_http_proxy", None)) if cover_dir else None
+        covers = await _prefetch_covers(
+            cover_cache, standard_scores + dx_scores, lambda s: s.music_id
+        )
+
+        b64 = await _render_b50_image(
+            name, float(rating or 0),
+            [("旧版本 Best 35", standard_scores), ("新版本 Best 15", dx_scores)],
+            covers=covers,
+        )
+        if b64:
+            yield event.make_result().base64_image(b64)
+            return
 
         lines = [f"# 🎵 {name} 的 Best 50\n"]
         lines.append(f"**Rating: {rating}** (旧谱面: {standard_total} / 新谱面: {dx_total})\n")
