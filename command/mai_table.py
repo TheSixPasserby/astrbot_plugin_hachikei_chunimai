@@ -251,6 +251,22 @@ async def mai_plate_progress_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
+_RANK_THRESHOLDS = {
+    "sss+": 100.5, "sss": 100.0, "ss+": 99.5, "ss": 99.0,
+    "s+": 98.0, "s": 97.0, "aaa": 94.0, "aa": 90.0, "a": 80.0,
+    "bbb": 75.0, "bb": 70.0, "b": 60.0, "c": 50.0, "d": 0.0,
+}
+
+
+def _rank_threshold(rank_str: str) -> float | None:
+    """把评价字符串映射到「达到该评价所需最低达成率」，供等级进度过滤使用。
+
+    与 ``mai_data.achievements_list`` 阈值保持一致。未知评价返回 ``None``。
+    """
+    rank = rank_str.strip().lower()
+    return _RANK_THRESHOLDS.get(rank)
+
+
 def _check_plate_rank(record, rank: str) -> bool:
     """检查成绩是否达到版牌等级要求。"""
     ach = record.achievements
@@ -291,6 +307,9 @@ async def mai_level_progress_handler(
         page = int(m.group(4)) if m.group(4) else 1
         username = m.group(5)
 
+        # 评价参数必须真正参与过滤：解析为目标达成率阈值
+        threshold = _rank_threshold(rank_str) if rank_str else None
+
         user_info = await api.query_user_b50(qqid=qq, username=username)
         if not user_info.charts:
             yield event.plain_result("未找到游玩记录。")
@@ -312,20 +331,44 @@ async def mai_level_progress_handler(
 
         chart_map = {(c.song_id, c.level_index): c for c in all_charts}
 
-        results = []
+        reached = []
+        not_reached = []
         for music, idx in level_songs:
             chart = chart_map.get((int(music.id), idx))
             ach = chart.achievements if chart else 0
-            results.append((music, idx, ach))
+            if threshold is None:
+                reached.append((music, idx, ach))
+            elif ach >= threshold:
+                reached.append((music, idx, ach))
+            else:
+                not_reached.append((music, idx, ach))
 
-        results.sort(key=lambda x: -x[2])
+        reached.sort(key=lambda x: -x[2])
+        not_reached.sort(key=lambda x: -x[2])
 
-        lines = [f"📊 {level} {rank_str.upper()} 进度 (第{page}页)"]
+        if threshold is None:
+            results = reached
+            lines = [f"📊 {level} 进度 (第{page}页)"]
+        else:
+            label = rank_str.upper()
+            lines = [f"📊 {level} {label} 进度 (第{page}页)"]
+            lines.append(f"已达到 {label}: {len(reached)} 首 | 未达到: {len(not_reached)} 首")
+            results = reached + not_reached
+
         start = (page - 1) * 30
-        for music, idx, ach in results[start:start + 30]:
-            label = DIFF_INDEX_TO_LABEL.get(idx, str(idx))
-            status = achievements_label(ach) if ach > 0 else "未游玩"
-            lines.append(f"  [{label}] {music.title}: {ach:.4f}% ({status})")
+        page_items = results[start:start + 30]
+        for music, idx, ach in page_items:
+            diff_label = DIFF_INDEX_TO_LABEL.get(idx, str(idx))
+            if ach > 0:
+                status = achievements_label(ach)
+                mark = "✅" if (threshold is not None and ach >= threshold) else ""
+                lines.append(f"  {mark}[{diff_label}] {music.title}: {ach:.4f}% ({status})")
+            else:
+                mark = "❌" if threshold is not None else ""
+                lines.append(f"  {mark}[{diff_label}] {music.title}: 未游玩")
+
+        if not page_items:
+            lines.append("  （无数据）")
 
         yield event.plain_result("\n".join(lines))
 

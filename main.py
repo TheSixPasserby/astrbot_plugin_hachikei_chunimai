@@ -1384,6 +1384,11 @@ class MaiChuPlugin(Star):
             # 版牌进度 / 等级进度
             if re.search(r"进度\s*$", text):
                 qq = self._get_qq(event)
+                # 等级进度以数字开头（如 "12 SSS进度"），版牌进度以版本字开头（如 "真極进度"）
+                if re.match(r"^\d", text):
+                    async for r in mai_level_progress_handler(event, self.api, self.music_data, qq=qq):
+                        yield r
+                    return
                 async for r in mai_plate_progress_handler(event, self.api, self.music_data, qq=qq):
                     yield r
                 return
