@@ -245,4 +245,6 @@ terminate()                    # stop alias push → close api → close lxns
 7. async generator / `await` / `return` 结构 —— 已系统性复查（1.8）：无 `await async_generator()`、无 async generator `return <value>` 吞输出、所有 `async for` 目标均含 `yield`。✅
 8. `metadata.yaml` 0.2.2 vs `@register` 0.1.0。
 9. `ginfo` 仍用 base64 路径（`image_to_base64`），未与未来统一图片发送方式对齐。
+   → 已定位：`image_to_base64()` 返回 `base64://...` 前缀，却同时传给 `.base64_image()`（ginfo/猜歌/猜曲绘三处）。需 AstrBot 源码确认 `base64_image()` 契约后才能安全统一，暂不盲改。
 10. alias push WebSocket 只 `logger.info`，未广播到群。
+   → `AliasPushService._handle_message` 有 `# TODO: 遍历群列表并发送`；`group_store.is_alias_push_enabled(group_id)` 已能判断哪些群开启，但缺少「发送消息到群」的 context API 用法，需 AstrBot 运行时确认后补广播。
