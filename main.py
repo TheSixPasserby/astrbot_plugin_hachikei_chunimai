@@ -69,14 +69,17 @@ class MaiChuPlugin(Star):
         self.bot_name: str = self.config.get("bot_name", "mai-bot")
         self.enable_reply: bool = self.config.get("enable_reply", True)
         self.timeout: int = self._int_config("request_timeout_seconds", 30)
+        self.http_proxy: str = self.config.get("http_proxy", "") or ""
 
         # 子系统
-        self.api = MaimaiAPI(timeout=self.timeout)
-        self.lxns = LxnsAPI(timeout=self.timeout)
+        self.api = MaimaiAPI(timeout=self.timeout, http_proxy=self.http_proxy)
+        self.lxns = LxnsAPI(timeout=self.timeout, http_proxy=self.http_proxy)
         self.user_store = UserStore(data_dir)
         self.group_store = GroupConfigStore(data_dir)
         self.music_data = MusicDataManager(self.api, data_dir)
         self.chu_data = ChuDataManager(self.lxns, data_dir)
+        self.music_data_ready = False
+        self.chu_data_ready = False
         self.alias_push = AliasPushService(self.api, self.config.get("alias_push_uuid", ""))
         self._qr_sync = None  # QRSyncService，延迟初始化（需要 maimai-py）
 
@@ -106,8 +109,8 @@ class MaiChuPlugin(Star):
     async def initialize(self) -> None:
         """异步初始化：配置 API、加载数据。"""
         token = self.config.get("mai_divingfish_token", "")
-        proxy = bool(self.config.get("http_proxy", ""))
-        self.api.configure(token=token, proxy=proxy)
+        use_yuzuchan_proxy = bool(self.config.get("use_yuzuchan_proxy", False))
+        self.api.configure(token=token, use_proxy=use_yuzuchan_proxy)
 
         # Lxns
         lxns_key = self.config.get("lxns_dev_key", "")
@@ -119,11 +122,13 @@ class MaiChuPlugin(Star):
 
         try:
             await self.music_data.load_all()
+            self.music_data_ready = True
         except Exception as e:
             logger.error(f"加载歌曲数据失败: {e}")
 
         try:
             await self.chu_data.load_all()
+            self.chu_data_ready = True
         except Exception as e:
             logger.error(f"加载 CHUNITHM 数据失败: {e}")
 
@@ -134,7 +139,7 @@ class MaiChuPlugin(Star):
         # 初始化二维码同步服务
         try:
             from .qr_sync import QRSyncService
-            proxy = self.config.get("http_proxy", "")
+            proxy = self.http_proxy
             df_dev_token = self.config.get("mai_divingfish_token", "")
             self._qr_sync = QRSyncService(timeout=self.timeout, proxy=proxy, df_dev_token=df_dev_token)
             logger.info("QR 同步服务已初始化（maimai-py）")
@@ -646,6 +651,32 @@ class MaiChuPlugin(Star):
         async for r in admin_help_handler(event):
             yield r
 
+    @command("插件状态")
+    async def _plugin_status(self, event: AstrMessageEvent):
+        """管理员查看各子系统就绪状态。"""
+        if not self._is_admin(event):
+            yield self._message("需要管理员权限。")
+            return
+
+        def _ok(flag: bool) -> str:
+            return "OK" if flag else "FAIL"
+
+        lines = [
+            "📊 **插件状态**",
+            "",
+            "| 子系统 | 状态 |",
+            "|--------|------|",
+            f"| maimai 曲库 | {_ok(self.music_data_ready)} |",
+            f"| maimai 别名 | {_ok(self.music_data_ready and len(self.music_data.alias_list) > 0)} |",
+            f"| CHUNITHM 曲库 | {_ok(self.chu_data_ready)} |",
+            f"| Lxns API | {_ok(bool(self.config.get('lxns_dev_key', '')))} |",
+            f"| DivingFish | {_ok(bool(self.config.get('mai_divingfish_token', '')))} |",
+            f"| maimai-py | {_ok(self._qr_sync is not None)} |",
+            f"| QR Sync | {_ok(self._qr_sync is not None)} |",
+            f"| HTTP 代理 | {self.http_proxy or '未配置'} |",
+        ]
+        yield self._message("\n".join(lines))
+
     # ================================================================
     # 群功能开关
     # ================================================================
@@ -745,6 +776,12 @@ class MaiChuPlugin(Star):
     # 统一查分路由
     # ================================================================
 
+    def _music_ready(self) -> bool:
+        return self.music_data_ready and len(self.music_data.music_list) > 0
+
+    def _chu_ready(self) -> bool:
+        return self.chu_data_ready and len(self.chu_data.songs) > 0
+
     async def _route_b50(self, event: AstrMessageEvent, game: str) -> None:
         """统一 B50/B30 路由。"""
         user_token = await self._get_lxns_token(event)
@@ -756,6 +793,12 @@ class MaiChuPlugin(Star):
         logger.info(f"[B50] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
         if qq is None and not user_token:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
+            return
+        if game == "chunithm" and not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪，请稍后重试或让管理员更新数据。")
+            return
+        if game == "maimai" and not self._music_ready():
+            yield self._message("⚠️ maimai 曲库未就绪，请稍后重试或让管理员更新数据。")
             return
         try:
             if game == "chunithm":
@@ -781,6 +824,12 @@ class MaiChuPlugin(Star):
         logger.info(f"[minfo] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
         if qq is None and not user_token:
             yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
+            return
+        if game == "chunithm" and not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪，请稍后重试或让管理员更新数据。")
+            return
+        if game == "maimai" and not self._music_ready():
+            yield self._message("⚠️ maimai 曲库未就绪，请稍后重试或让管理员更新数据。")
             return
         try:
             if game == "chunithm":
@@ -850,12 +899,18 @@ class MaiChuPlugin(Star):
     async def _chu_search(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
+        if not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪。")
+            return
         async for r in chu_search_handler(event, self.chu_data):
             yield r
 
     @command("chuid")
     async def _chu_id(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
+            return
+        if not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪。")
             return
         async for r in chu_id_handler(event, self.chu_data):
             yield r
@@ -909,9 +964,15 @@ class MaiChuPlugin(Star):
             return
         game = self._resolve_game(event)
         if game == "chunithm":
+            if not self._chu_ready():
+                yield self._message("⚠️ CHUNITHM 曲库未就绪。")
+                return
             async for r in chu_search_handler(event, self.chu_data):
                 yield r
         else:
+            if not self._music_ready():
+                yield self._message("⚠️ maimai 曲库未就绪。")
+                return
             async for r in mai_search_music_handler(event, self.music_data):
                 yield r
 
@@ -921,9 +982,15 @@ class MaiChuPlugin(Star):
             return
         game = self._resolve_game(event)
         if game == "chunithm":
+            if not self._chu_ready():
+                yield self._message("⚠️ CHUNITHM 曲库未就绪。")
+                return
             async for r in chu_id_handler(event, self.chu_data):
                 yield r
         else:
+            if not self._music_ready():
+                yield self._message("⚠️ maimai 曲库未就绪。")
+                return
             async for r in mai_query_by_id_handler(event, self.music_data):
                 yield r
 

@@ -23,6 +23,12 @@
     "description": "HTTP 代理地址",
     "hint": "留空则不使用代理，格式如 http://127.0.0.1:7890"
   },
+  "use_yuzuchan_proxy": {
+    "type": "bool",
+    "default": false,
+    "description": "使用柚子查分器反代",
+    "hint": "开启后查分/别名请求走 proxy.yuzuchan.site 反代；与 http_proxy（HTTP 代理）相互独立"
+  },
   "enable_guess_game": {
     "type": "bool",
     "default": true,
@@ -46,7 +52,11 @@
     "default": 30,
     "description": "请求超时时间（秒）",
     "hint": "HTTP 请求的超时时间",
-    "slider": {"min": 5, "max": 60, "step": 5}
+    "slider": {
+      "min": 5,
+      "max": 60,
+      "step": 5
+    }
   },
   "kook_token": {
     "type": "string",
@@ -59,14 +69,19 @@
     "default": "yuzuchan",
     "description": "舞萌别名数据源",
     "hint": "yuzuchan = 柚子查分器, lxns = 落雪咖啡屋",
-    "options": ["yuzuchan", "lxns"]
+    "options": [
+      "yuzuchan",
+      "lxns"
+    ]
   },
   "chu_alias_source": {
     "type": "string",
     "default": "lxns",
     "description": "中二别名数据源",
     "hint": "目前仅支持落雪",
-    "options": ["lxns"]
+    "options": [
+      "lxns"
+    ]
   },
   "lxns_dev_key": {
     "type": "string",
