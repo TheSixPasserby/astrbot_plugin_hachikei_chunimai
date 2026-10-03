@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PIL import Image, ImageDraw
 
+from .emoji import sanitize_emoji
 from .font import get_font
 
 
@@ -72,7 +73,7 @@ def render_help(
     draw.rectangle([0, 0, width, header_h], fill=_HEADER_BG)
     title_font = get_font(26, bold=True)
     sub_font = get_font(16)
-    draw.text((pad, 14), "🎵 maimai DX & CHUNITHM 综合助手", font=title_font, fill=(255, 255, 255, 255))
+    draw.text((pad, 14), sanitize_emoji("🎵 maimai DX & CHUNITHM 综合助手"), font=title_font, fill=(255, 255, 255, 255))
     sub = f"当前查询游戏: {game_label}"
     if group_label:
         sub += f"  |  群默认: {group_label}"
@@ -86,7 +87,7 @@ def render_help(
         "· 发送「同步数据 水鱼/落雪」后发送街机二维码即可同步成绩",
     ]
     for h in hints:
-        draw.text((pad, y), h, font=hint_font, fill=_MUTED)
+        draw.text((pad, y), sanitize_emoji(h), font=hint_font, fill=_MUTED)
         y += 18
 
     y += 4
@@ -97,7 +98,7 @@ def render_help(
 
     for key, sec in sections.items():
         # 分区标题
-        draw.text((pad, y), f"{sec['emoji']} {sec['title']}", font=sec_title_font, fill=_TITLE)
+        draw.text((pad, y), sanitize_emoji(f"{sec['emoji']} {sec['title']}"), font=sec_title_font, fill=_TITLE)
         y += 26
         # 表头
         header_font = get_font(12, bold=True)
@@ -108,12 +109,12 @@ def render_help(
         # 数据行
         row_font = get_font(14)
         for c in sec["commands"]:
-            cmd_text = c["cmd"]
+            cmd_text = sanitize_emoji(c["cmd"])
             if c.get("star"):
-                cmd_text += " ⭐"
+                cmd_text += " ★"
             draw.text((col_cmd, y), cmd_text, font=row_font, fill=_CMD)
-            draw.text((col_alias, y), c["alias"], font=row_font, fill=_TEXT)
-            draw.text((col_desc, y), c["desc"], font=row_font, fill=_TEXT)
+            draw.text((col_alias, y), sanitize_emoji(c["alias"]), font=row_font, fill=_TEXT)
+            draw.text((col_desc, y), sanitize_emoji(c["desc"]), font=row_font, fill=_TEXT)
             y += row_h
         # 分区间隔
         draw.line([pad, y - 6, width - pad, y - 6], fill=_DIVIDER, width=1)
