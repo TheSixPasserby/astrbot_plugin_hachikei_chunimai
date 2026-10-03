@@ -9,8 +9,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from command.mai_table import _rise_suggestion
-from mai_data import MusicDataManager
+from astrbot_plugin_hachikei_chunimai.command.mai_table import _rise_suggestion
+from astrbot_plugin_hachikei_chunimai.mai_data import MusicDataManager
 
 
 class _Chart:
@@ -42,13 +42,15 @@ def test_level_index_locked_not_other_difficulty():
         ds=[8.0, 9.0, 10.0, 13.6, 0.0],
         level=["1", "2", "3", "4", "5"],
     )
-    chart = _Chart("1", level_index=3, achievements=97.0, ra=100, title="Song")
+    # 真实 old_ra = compute_ra(13.6, 98.0) = 13；+1.0 后 99.0 → 14
+    chart = _Chart("1", level_index=3, achievements=98.0, ra=13, title="Song")
     sug = _rise_suggestion(chart, music, level=None)
     # 新 Ra 必须基于 ds[3]=13.6，而不是 ds[0..2]
     assert sug is not None
     gain, title, lv, old_ra, new_ra = sug
-    expected_new_ra = MusicDataManager.compute_ra(13.6, 98.0)
+    expected_new_ra = MusicDataManager.compute_ra(13.6, 99.0)
     assert new_ra == expected_new_ra
+    assert new_ra == 14  # int(13.6 + 0.5) = 14，与 ds[0..2] 的 8/9/10 无关
 
 
 def test_out_of_range_level_index_returns_none():
@@ -66,8 +68,9 @@ def test_negative_level_index_returns_none():
 def test_level_filter_applied_after_lock():
     # level 过滤针对锁定难度；锁定难度不符合 level 时返回 None
     music = _music(ds=[10.0, 12.0], level=["10", "12"])
-    chart = _Chart("1", level_index=1, achievements=99.0, ra=100, title="Song")
-    assert _rise_suggestion(chart, music, level="10") is None
+    # 真实 old_ra = compute_ra(12.0, 99.0) = 12
+    chart = _Chart("1", level_index=1, achievements=99.0, ra=12, title="Song")
+    assert _rise_suggestion(chart, music, level="10") is None  # 锁定 idx=1 是 "12"，非 "10"
     assert _rise_suggestion(chart, music, level="12") is not None
 
 

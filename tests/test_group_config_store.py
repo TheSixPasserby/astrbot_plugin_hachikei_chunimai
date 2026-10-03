@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from storage import GroupConfigStore
+from astrbot_plugin_hachikei_chunimai.storage import GroupConfigStore
 
 
 def _make_store() -> GroupConfigStore:

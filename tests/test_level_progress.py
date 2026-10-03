@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from command.mai_table import _rank_threshold
+from astrbot_plugin_hachikei_chunimai.command.mai_table import _rank_threshold
 
 
 def test_known_ranks():

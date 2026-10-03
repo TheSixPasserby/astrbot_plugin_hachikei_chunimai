@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from storage import UserStore
+from astrbot_plugin_hachikei_chunimai.storage import UserStore
 
 
 def _make_store() -> UserStore:

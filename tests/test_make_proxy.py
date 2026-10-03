@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from utils import make_proxy  # noqa: E402
+from astrbot_plugin_hachikei_chunimai.utils import make_proxy  # noqa: E402
 
 
 def test_none_returns_none():

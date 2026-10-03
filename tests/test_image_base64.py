@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from image_utils import image_to_base64
+from astrbot_plugin_hachikei_chunimai.image_utils import image_to_base64
 
 
 def test_returns_raw_base64_without_prefix():
