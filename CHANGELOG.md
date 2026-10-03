@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.6 (2026-10-03)
+
+### 重构
+- 从 `main.py` 拆出趣味功能到 `command/fun.py`（今日运势 / mai什么 / 随机选歌）
+- 清理 `main.py` 未使用的导入（`get_platform_adapter_name`、`MaimaiError`、`describe_error`）
+
 ## v0.2.5 (2026-10-03)
 
 ### 新增

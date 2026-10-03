@@ -27,6 +27,7 @@ from .command.mai_guess import (
     mai_reset_guess_handler,
 )
 from .command.help import help_handler, admin_help_handler
+from .command.fun import daily_fortune_handler, mai_what_handler, random_song_handler
 from .command.mai_score import (
     mai_b50_handler, mai_ginfo_handler, mai_minfo_handler, mai_my_ranking_handler,
     mai_ranking_handler, mai_score_calc_handler, mai_score_line_handler,
@@ -40,10 +41,9 @@ from .command.mai_table import (
     mai_level_achievement_list_handler, mai_level_progress_handler,
     mai_plate_progress_handler, mai_rating_table_handler, mai_rise_score_handler,
 )
-from .errors import MaimaiError, describe_error
 from .mai_data import MusicDataManager
 from .storage import GroupConfigStore, UserStore
-from .utils import get_platform_adapter_name, is_group_message
+from .utils import is_group_message
 
 VALID_GAMES = {"maimai", "chunithm"}
 GAME_LABELS = {"maimai": "maimai DX", "chunithm": "CHUNITHM"}
@@ -53,7 +53,7 @@ GAME_LABELS = {"maimai": "maimai DX", "chunithm": "CHUNITHM"}
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.2.5",
+    "0.2.6",
     "",
 )
 class MaiChuPlugin(Star):
@@ -1366,19 +1366,19 @@ class MaiChuPlugin(Star):
 
             # 今日运势
             if re.match(r"^(今日mai|今日舞萌|今日运势)$", text):
-                async for r in self._daily_fortune(event):
+                async for r in daily_fortune_handler(event, self.music_data):
                     yield r
                     return
 
             # mai什么 / 随机歌曲
             if re.match(r"^.*mai.*什么", text):
-                async for r in self._mai_what(event):
+                async for r in mai_what_handler(event, self.music_data):
                     yield r
                     return
 
             # 来/随/给个 + 难度
             if re.match(r"^[来随给]个", text):
-                async for r in self._random_song(event):
+                async for r in random_song_handler(event, self.music_data):
                     yield r
                     return
 
@@ -1434,85 +1434,3 @@ class MaiChuPlugin(Star):
                 async for r in mai_search_alias_handler(event, self.music_data):
                     yield r
             return
-
-    # ================================================================
-    # 内置功能
-    # ================================================================
-
-    async def _daily_fortune(self, event: AstrMessageEvent):
-        """每日运势。"""
-        from .utils import qq_hash, now_cn, secure_choice
-
-        qq = event.get_sender_id()
-        today = now_cn().strftime("%Y%m%d")
-        seed = int(f"{qq_hash(qq)}{today}")
-        import random
-        rng = random.Random(seed)
-
-        music = (
-            secure_choice(list(self.music_data.music_list))
-            if self.music_data.music_list else None
-        )
-
-        fortunes = [
-            ("大吉", "今天打 mai 一定会有好成绩！"),
-            ("中吉", "稳扎稳打，今天适合刷分。"),
-            ("小吉", "小心手滑，注意节奏。"),
-            ("吉", "平平淡淡才是真。"),
-            ("末吉", "今天可能不太顺利，休息一下吧。"),
-        ]
-        fortune = rng.choice(fortunes)
-
-        lines = [f"🎱 今日运势 — {fortune[0]}", fortune[1]]
-        if music:
-            lines.append(f"🎵 今日推荐：{music.title}")
-
-        yield self._message("\n".join(lines))
-
-    async def _mai_what(self, event: AstrMessageEvent):
-        """mai什么 — 随机推荐。"""
-        from .utils import secure_choice
-
-        music = (
-            secure_choice(list(self.music_data.music_list))
-            if self.music_data.music_list else None
-        )
-        if not music:
-            yield self._message("曲库为空。")
-            return
-
-        levels = " / ".join(music.level)
-        yield self._message(
-            f"🎵 随机推荐：{music.title}\n"
-            f"  曲师: {music.basic_info.artist}\n"
-            f"  难度: {levels}\n"
-            f"  BPM: {music.basic_info.bpm}"
-        )
-
-    async def _random_song(self, event: AstrMessageEvent):
-        """来/随/给个 + 难度等级。"""
-        text = event.get_message_str().strip()
-        m = re.match(r"^[来随给]个(?:(dx|sd|标准))?([绿黄红紫白]?)([0-9]+\+?)$", text)
-        if not m:
-            return
-
-        type_filter = m.group(1)
-        diff_char = m.group(2)
-        level = m.group(3)
-
-        type_map = {"dx": "DX", "sd": "SD", "标准": "SD"}
-        music_type = type_map.get(type_filter) if type_filter else None
-
-        from .mai_data import DIFF_LABEL_TO_INDEX
-        diff_idx = DIFF_LABEL_TO_INDEX.get(diff_char)
-
-        music = self.music_data.random_music(level=level, diff=diff_idx, type=music_type)
-        if not music:
-            yield self._message("未找到符合条件的歌曲。")
-            return
-
-        levels = " / ".join(music.level)
-        yield self._message(
-            f"🎵 随机选歌：{music.title}\n"
-            f"  类型: {music.type} | 难度: {levels}"
-        )
