@@ -19,6 +19,29 @@ if TYPE_CHECKING:
     from ..api_client import MaimaiAPI
 
 
+def _rise_suggestion(chart, music, level: str | None = None) -> tuple | None:
+    """计算单首成绩的推分建议（纯函数，可测试）。
+
+    严格按 ``song_id + level_index`` 锁定谱面：
+    - 未游玩的谱面/越界难度 → 返回 None（不继承其他歌曲定数）。
+    - ``level`` 过滤在锁定难度之后进行。
+    - 新 Ra 基于该谱面对应定数 ``music.ds[idx]``。
+    - 只有新 Ra 严格大于旧 Ra 才给出建议。
+
+    返回 ``(gain, title, level_label, old_ra, new_ra)`` 或 ``None``。
+    """
+    idx = chart.level_index
+    if idx is None or idx < 0 or idx >= len(music.ds):
+        return None
+    if level and music.level[idx] != level:
+        return None
+    ds = music.ds[idx]
+    new_ra = MusicDataManager.compute_ra(ds, chart.achievements + 1.0)
+    if new_ra <= chart.ra:
+        return None
+    return (new_ra - chart.ra, chart.title, music.level[idx], chart.ra, new_ra)
+
+
 async def mai_rating_table_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
@@ -126,22 +149,19 @@ async def mai_rise_score_handler(
             if user_info.charts.dx:
                 all_charts.extend(user_info.charts.dx)
 
-        # 按 Ra 排序，找到可以提升的歌曲
+        # 按 Ra 升序，优先找提升空间大的歌曲
         all_charts.sort(key=lambda c: c.ra)
         suggestions = []
-        current_ra = sum(c.ra for c in all_charts[:50]) if len(all_charts) >= 50 else sum(c.ra for c in all_charts)
 
         for chart in all_charts[:50]:
             music = data_mgr.music_list.by_id(chart.song_id)
             if not music:
                 continue
-            for i, ds in enumerate(music.ds):
-                if level and music.level[i] != level:
-                    continue
-                new_ra = data_mgr.compute_ra(ds, chart.achievements + 1.0)
-                if new_ra > chart.ra:
-                    gain = new_ra - chart.ra
-                    suggestions.append((gain, chart.title, music.level[i], chart.ra, new_ra))
+            # 成绩必须锁定到 song_id + level_index 对应的谱面，
+            # 不能用「某首歌的达成率」去套「另一难度/另一首歌」的定数。
+            sug = _rise_suggestion(chart, music, level=level)
+            if sug is not None:
+                suggestions.append(sug)
 
         suggestions.sort(key=lambda x: -x[0])
 
