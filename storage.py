@@ -291,6 +291,26 @@ class GroupConfigStore:
     async def toggle_alias_push(self, group_id: str, enable: bool) -> None:
         await self.toggle("disabled_alias_push", group_id, enable)
 
+    # --- 别名推送 session 映射（用于主动广播到群） ---
+
+    async def set_and_save_alias_push_session(self, group_id: str, session: str) -> None:
+        """设置并持久化某群的别名推送 session。"""
+        async with self._lock:
+            data = self._load_dict("alias_push_sessions")
+            data[group_id] = session
+            await self._save_dict("alias_push_sessions", data)
+
+    async def remove_alias_push_session(self, group_id: str) -> None:
+        """移除某群的别名推送 session。"""
+        async with self._lock:
+            data = self._load_dict("alias_push_sessions")
+            data.pop(group_id, None)
+            await self._save_dict("alias_push_sessions", data)
+
+    def get_all_alias_push_sessions(self) -> dict[str, str]:
+        """返回所有别名推送群的 {group_id: session}。"""
+        return dict(self._load_dict("alias_push_sessions"))
+
     # --- 游戏模式（群级） ---
 
     def get_group_game_mode(self, group_id: str) -> str:
