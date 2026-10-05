@@ -237,25 +237,6 @@ async def alias_push_handler(
         yield event.plain_result(f"操作失败：{e}")
 
 
-async def alias_global_push_handler(
-    event: AstrMessageEvent,
-    group_store,
-    **_: Any,
-):
-    """全局开启/关闭别名推送。"""
-    try:
-        text = event.get_message_str().strip()
-        m = re.match(r"^全局(开启|关闭)别名推送$", text)
-        if not m:
-            return
-
-        # 此功能需要 superadmin 权限
-        yield event.plain_result("全局别名推送开关已更新。")
-
-    except Exception as e:
-        yield event.plain_result(f"操作失败：{e}")
-
-
 # --- WebSocket 别名推送服务 ---
 
 class AliasPushService:

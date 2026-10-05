@@ -14,38 +14,35 @@ from astrbot.api.star import Context, Star, StarTools
 from .api_client import MaimaiAPI
 from .lxns_client import LxnsAPI
 from .chu_data import ChuDataManager
-from .command.chu_score import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler, chu_search_alias_handler
+from .command.chu_score import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler
 from .command.mai_score import lxns_mai_b50_handler, lxns_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
-    alias_global_push_handler, alias_local_apply_handler, alias_push_handler,
-    alias_query_handler, alias_status_handler, update_alias_handler,
+    alias_local_apply_handler, alias_push_handler,
+    alias_status_handler, update_alias_handler,
 )
 from .command.mai_guess import (
-    mai_guess_music_handler, mai_guess_pic_handler, mai_guess_solve_handler,
-    mai_reset_guess_handler,
+    mai_guess_music_handler, mai_guess_pic_handler, mai_reset_guess_handler,
 )
 from .command.help import help_handler, admin_help_handler
-from .command.fun import daily_fortune_handler, mai_what_handler, random_song_handler
 from .command.account import AccountService
 from .command.admin import AdminService
 from .command.sync import SyncService
+from .command.nlp import NlpService
 from .command.mai_score import (
     mai_b50_handler, mai_ginfo_handler, mai_minfo_handler, mai_my_ranking_handler,
-    mai_ranking_handler, mai_score_calc_handler, mai_score_line_handler,
+    mai_ranking_handler, mai_score_line_handler,
 )
 from .command.mai_search import (
-    mai_query_by_id_handler, mai_search_alias_handler, mai_search_artist_handler,
+    mai_query_by_id_handler, mai_search_artist_handler,
     mai_search_base_handler, mai_search_bpm_handler, mai_search_charter_handler,
     mai_search_music_handler,
 )
 from .command.mai_table import (
-    mai_level_achievement_list_handler, mai_level_progress_handler,
-    mai_plate_progress_handler, mai_rating_table_handler, mai_rise_score_handler,
+    mai_rating_table_handler, mai_rise_score_handler,
 )
 from .mai_data import MusicDataManager
 from .storage import GroupConfigStore, UserStore
-from .utils import is_group_message
 
 
 
@@ -53,7 +50,7 @@ from .utils import is_group_message
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.3.2",
+    "0.4.0",
     "",
 )
 class MaiChuPlugin(Star):
@@ -99,6 +96,21 @@ class MaiChuPlugin(Star):
             user_store=self.user_store,
             get_qr_sync=lambda: self._qr_sync,
             get_lxns_token=self._get_lxns_token,
+            user_key_of=self._user_key,
+            message=lambda event, text: MessageEventResult().message(text),
+        )
+        # 自然语言路由服务
+        self.nlp = NlpService(
+            api=self.api,
+            lxns=self.lxns,
+            music_data=self.music_data,
+            chu_data=self.chu_data,
+            is_group_disabled=self._is_group_disabled,
+            resolve_game=self._resolve_game,
+            get_qq=self._get_qq,
+            get_df_token=self._get_df_token,
+            get_lxns_token=self._get_lxns_token,
+            get_prober=self._get_prober,
             user_key_of=self._user_key,
             message=lambda event, text: MessageEventResult().message(text),
         )
@@ -896,8 +908,9 @@ class MaiChuPlugin(Star):
     # ================================================================
 
     @event_message_type(EventMessageType.ALL)
+    @event_message_type(EventMessageType.ALL)
     async def _on_message(self, event: AstrMessageEvent):
-        """全局消息处理：猜歌答案、别名查歌、分数计算、运势等。"""
+        """全局消息处理：pending 监听 + 自然语言路由。"""
         if self._is_group_disabled(event):
             return
         # 跳过机器人自身消息（避免 bot 回复触发监听）
@@ -922,103 +935,15 @@ class MaiChuPlugin(Star):
                     self.account._pending_df_message = None
                 return
 
-        text = event.get_message_str().strip()
-
         # 同步数据等待中的 SGWCMAID 检测
-        if self.sync.qr_sync and self.sync.has_pending(self._user_key(event)) and "SGWCMAID" in text.upper():
+        if self.sync.qr_sync and self.sync.has_pending(self._user_key(event)) and "SGWCMAID" in event.get_message_str().strip().upper():
             from .qr_sync import extract_sgid
-            sgid = extract_sgid(text)
+            sgid = extract_sgid(event.get_message_str().strip())
             if sgid:
                 async for r in self.sync.try_sync_sgid(event, sgid):
                     yield r
                 return
 
-        game = self._resolve_game(event)
-
-        # --- 以下仅 maimai 模式 ---
-
-        if game == "maimai":
-            # 猜歌答案
-            if is_group_message(event):
-                async for r in mai_guess_solve_handler(event, self.music_data):
-                    yield r
-                return
-
-            # 分数计算：X的Y是多少分
-            if re.match(r"^[\d.]+的[\d.]+是多少分$", text):
-                async for r in mai_score_calc_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # 今日运势
-            if re.match(r"^(今日mai|今日舞萌|今日运势)$", text):
-                async for r in daily_fortune_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # mai什么 / 随机歌曲
-            if re.match(r"^.*mai.*什么", text):
-                async for r in mai_what_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # 来/随/给个 + 难度
-            if re.match(r"^[来随给]个", text):
-                async for r in random_song_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # 分数线
-            if text.startswith("分数线"):
-                async for r in mai_score_line_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # X定数表
-            if re.match(r"^(?!更新).+?定数表$", text):
-                async for r in mai_rating_table_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # 版牌进度 / 等级进度
-            if re.search(r"进度\s*$", text):
-                qq = self._get_qq(event)
-                df_token = self._get_df_token(event)
-                # 等级进度以数字开头（如 "12 SSS进度"），版牌进度以版本字开头（如 "真極进度"）
-                if re.match(r"^\d", text):
-                    async for r in mai_level_progress_handler(event, self.api, self.music_data, qq=qq, token=df_token):
-                        yield r
-                    return
-                async for r in mai_plate_progress_handler(event, self.api, self.music_data, qq=qq, token=df_token):
-                    yield r
-                return
-
-            # 推分
-            if re.match(r"^我要在", text):
-                prober = self._get_prober(event, "maimai")
-                lxns_token = await self._get_lxns_token(event)
-                qq = self._get_qq(event)
-                df_token = self._get_df_token(event)
-                async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq, token=df_token):
-                    yield r
-                return
-
-        # --- 共用：别名相关（按游戏路由） ---
-
-        if re.search(r"有什么别[名称]$", text):
-            if game == "chunithm":
-                async for r in chu_alias_query_handler(event, self.chu_data):
-                    yield r
-            else:
-                async for r in alias_query_handler(event, self.music_data):
-                    yield r
-            return
-
-        if re.search(r"(是什么歌|是啥歌)$", text):
-            if game == "chunithm":
-                async for r in chu_search_alias_handler(event, self.chu_data):
-                    yield r
-            else:
-                async for r in mai_search_alias_handler(event, self.music_data):
-                    yield r
-            return
+        # 其余自然语言路由下沉到 NlpService
+        async for r in self.nlp.handle(event):
+            yield r

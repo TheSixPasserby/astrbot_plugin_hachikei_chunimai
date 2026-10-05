@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.0 (2026-10-06)
+
+### 重构
+- 下沉 `_on_message` 的自然语言路由（126 行正则匹配）到 `command/nlp.py` 的
+  `NlpService`；`main.py` 仅保留 pending 监听（OAuth / 水鱼 Token / SGID）与薄委托
+- `main.py` 1040 → 949 行，清理 14 个不再使用的 handler 导入
+
+### 清理
+- 删除两个死代码：
+  - `alias_global_push_handler`（空壳，回"已更新"但无任何持久化）
+  - `mai_level_achievement_list_handler`（功能完整但从未接路由，模型字段已核对可用）
+
+### 新增
+- `tests/test_nlp_service.py`：4 个用例，锁定 NlpService 结构与 main 委托关系
+
 ## v0.3.2 (2026-10-06)
 
 ### 新增
