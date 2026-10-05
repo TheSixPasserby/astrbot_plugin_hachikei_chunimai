@@ -30,12 +30,10 @@ class LxnsAPI:
         self._timeout = timeout
         self._http_proxy = make_proxy(http_proxy)
         self._dev_key: str = ""
-        self._user_token: str = ""
         self._session: ClientSession | None = None
 
-    def configure(self, dev_key: str = "", user_token: str = "") -> None:
+    def configure(self, dev_key: str = "") -> None:
         self._dev_key = dev_key
-        self._user_token = user_token
 
     async def _get_session(self) -> ClientSession:
         if self._session is None or self._session.closed:
@@ -54,9 +52,9 @@ class LxnsAPI:
             return {"Authorization": self._dev_key}
         return {}
 
-    def _user_headers(self) -> dict[str, str]:
-        if self._user_token:
-            return {"X-User-Token": self._user_token}
+    def _user_headers(self, access_token: str = "") -> dict[str, str]:
+        if access_token:
+            return {"X-User-Token": access_token}
         return {}
 
     async def _get(self, path: str, headers: dict | None = None, **kwargs: Any) -> Any:
@@ -75,9 +73,9 @@ class LxnsAPI:
                 raise ServerError(f"Lxns API 错误 ({code}): {msg}")
             return data.get("data")
 
-    async def _user_get(self, path: str, **kwargs: Any) -> Any:
-        """使用个人 API 密钥请求。"""
-        return await self._get(path, headers=self._user_headers(), **kwargs)
+    async def _user_get(self, path: str, access_token: str = "", **kwargs: Any) -> Any:
+        """使用个人 API 密钥请求。access_token 显式传入，避免共享状态串线。"""
+        return await self._get(path, headers=self._user_headers(access_token), **kwargs)
 
     # ================================================================
     # OAuth2
@@ -184,13 +182,13 @@ class LxnsAPI:
     # maimai DX（个人 API）
     # ================================================================
 
-    async def mai_user_player(self) -> dict:
+    async def mai_user_player(self, access_token: str = "") -> dict:
         """获取自己的玩家信息。"""
-        return await self._user_get("/user/maimai/player")
+        return await self._user_get("/user/maimai/player", access_token=access_token)
 
-    async def mai_user_scores(self) -> list:
+    async def mai_user_scores(self, access_token: str = "") -> list:
         """获取自己的所有成绩。"""
-        return await self._user_get("/user/maimai/player/scores")
+        return await self._user_get("/user/maimai/player/scores", access_token=access_token)
 
     async def mai_song_list(self, **params) -> dict:
         """获取曲目列表。返回 {songs[], genres[], versions[]}"""
@@ -250,13 +248,13 @@ class LxnsAPI:
     # CHUNITHM（个人 API）
     # ================================================================
 
-    async def chu_user_player(self) -> dict:
+    async def chu_user_player(self, access_token: str = "") -> dict:
         """获取自己的玩家信息。"""
-        return await self._user_get("/user/chunithm/player")
+        return await self._user_get("/user/chunithm/player", access_token=access_token)
 
-    async def chu_user_scores(self) -> list:
+    async def chu_user_scores(self, access_token: str = "") -> list:
         """获取自己的所有成绩。"""
-        return await self._user_get("/user/chunithm/player/scores")
+        return await self._user_get("/user/chunithm/player/scores", access_token=access_token)
 
     async def chu_song_list(self, **params) -> dict:
         """获取曲目列表。返回 {songs[], genres[], versions[]}"""

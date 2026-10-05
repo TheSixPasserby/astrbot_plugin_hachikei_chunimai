@@ -261,6 +261,21 @@ class MusicDataManager:
         self._static_dir = data_dir / "static"
         self._static_dir.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def cover_dir(self) -> Path:
+        """封面缓存目录（避免外部直接摸 _data_dir）。"""
+        return self._static_dir / "cover"
+
+    @property
+    def lxns(self):
+        """关联的 LxnsAPI（可能为 None）。"""
+        return self._lxns
+
+    @property
+    def data_dir(self) -> Path:
+        """数据目录（避免外部直接摸 _data_dir）。"""
+        return self._data_dir
+
         self.music_list: MusicList = MusicList()
         self.chart_stats: dict = {}
         self.alias_list: AliasList = AliasList()

@@ -118,12 +118,7 @@ async def mai_rise_score_handler(
         all_charts = []
 
         if prober == "lxns" and lxns and lxns_token:
-            saved = lxns._user_token
-            lxns._user_token = lxns_token
-            try:
-                bests = await lxns._user_get("/user/maimai/player/bests")
-            finally:
-                lxns._user_token = saved
+            bests = await lxns._user_get("/user/maimai/player/bests", access_token=lxns_token)
             for s in bests.get("standard", []):
                 all_charts.append(type("C", (), {
                     "song_id": str(s.get("id", "")),

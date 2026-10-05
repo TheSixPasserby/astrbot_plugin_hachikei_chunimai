@@ -65,6 +65,7 @@ async def chu_b30_handler(
     lxns: LxnsAPI,
     data_mgr: ChuDataManager,
     qq: int | None = None,
+    lxns_token: str = "",
     **_: Any,
 ):
     """CHUNITHM B30 查询。"""
@@ -106,9 +107,9 @@ async def chu_b30_handler(
         friend_code = None
         use_oauth = False
 
-        if lxns._user_token:
+        if lxns_token:
             try:
-                player = await lxns.oauth_get_player(lxns._user_token, "chunithm")
+                player = await lxns.oauth_get_player(lxns_token, "chunithm")
                 friend_code = player.get("friend_code")
                 use_oauth = True
             except Exception as e:
@@ -129,7 +130,7 @@ async def chu_b30_handler(
 
         # 获取 B30
         if use_oauth:
-            bests_data = await lxns.oauth_get_bests(lxns._user_token, "chunithm")
+            bests_data = await lxns.oauth_get_bests(lxns_token, "chunithm")
         else:
             bests_data = await lxns.chu_bests(friend_code)
         bests = bests_data.get("bests", [])
@@ -215,6 +216,7 @@ async def chu_minfo_handler(
     lxns: LxnsAPI,
     data_mgr: ChuDataManager,
     qq: int | None = None,
+    lxns_token: str = "",
     **_: Any,
 ):
     """CHUNITHM 单曲成绩查询。"""
@@ -242,9 +244,9 @@ async def chu_minfo_handler(
         # 获取玩家信息：OAuth > QQ 开发者 API
         fc = None
         use_oauth = False
-        if lxns._user_token:
+        if lxns_token:
             try:
-                player = await lxns.oauth_get_player(lxns._user_token, "chunithm")
+                player = await lxns.oauth_get_player(lxns_token, "chunithm")
                 fc = player.get("friend_code")
                 use_oauth = True
             except Exception as e:
@@ -268,7 +270,7 @@ async def chu_minfo_handler(
 
         # 获取成绩
         if use_oauth:
-            all_scores = await lxns.oauth_get_scores(lxns._user_token, "chunithm")
+            all_scores = await lxns.oauth_get_scores(lxns_token, "chunithm")
             score = next((s for s in all_scores if s.get("id") == song.id), None)
             if not score:
                 yield event.plain_result(f"未找到「{song.title}」的成绩记录。")

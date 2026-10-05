@@ -202,7 +202,7 @@ class AdminService:
         yield self._message(event, f"🔄 正在从{src_label}重新加载{label}别名数据...")
 
         if game == "maimai":
-            self.music_data.configure_alias(source=source, lxns=self.music_data._lxns)
+            self.music_data.configure_alias(source=source, lxns=self.music_data.lxns)
             try:
                 await self.music_data.load_alias_data()
                 yield self._message(event, f"✅ {label}别名源已切换为 {src_label}，共 {len(self.music_data.alias_list)} 条。")

@@ -50,7 +50,7 @@ from .storage import GroupConfigStore, UserStore
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.4.0",
+    "0.4.1",
     "",
 )
 class MaiChuPlugin(Star):
@@ -239,6 +239,11 @@ class MaiChuPlugin(Star):
     async def terminate(self) -> None:
         """清理资源。"""
         await self.alias_push.stop()
+        if self._qr_sync is not None:
+            try:
+                await self._qr_sync.close()
+            except Exception:
+                pass
         await self.api.close()
         await self.lxns.close()
         logger.info("插件已卸载")
@@ -461,9 +466,6 @@ class MaiChuPlugin(Star):
     async def _route_b50(self, event: AstrMessageEvent, game: str) -> None:
         """统一 B50/B30 路由。"""
         user_token = await self._get_lxns_token(event)
-        saved_token = self.lxns._user_token
-        if user_token:
-            self.lxns._user_token = user_token
         qq = self._get_qq(event)
         df_token = self._get_df_token(event)
         prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
@@ -480,25 +482,19 @@ class MaiChuPlugin(Star):
         if game == "maimai" and not self._music_ready():
             yield self._message("⚠️ maimai 曲库未就绪，请稍后重试或让管理员更新数据。")
             return
-        try:
-            if game == "chunithm":
-                async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq):
-                    yield r
-            elif prober == "lxns":
-                async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
-                    yield r
-            else:
-                async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq, token=df_token):
-                    yield r
-        finally:
-            self.lxns._user_token = saved_token
+        if game == "chunithm":
+            async for r in chu_b30_handler(event, self.lxns, self.chu_data, qq=qq, lxns_token=user_token):
+                yield r
+        elif prober == "lxns":
+            async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data, lxns_token=user_token):
+                yield r
+        else:
+            async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq, token=df_token):
+                yield r
 
     async def _route_minfo(self, event: AstrMessageEvent, game: str) -> None:
         """统一 minfo 路由。"""
         user_token = await self._get_lxns_token(event)
-        saved_token = self.lxns._user_token
-        if user_token:
-            self.lxns._user_token = user_token
         qq = self._get_qq(event)
         df_token = self._get_df_token(event)
         prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
@@ -515,18 +511,15 @@ class MaiChuPlugin(Star):
         if game == "maimai" and not self._music_ready():
             yield self._message("⚠️ maimai 曲库未就绪，请稍后重试或让管理员更新数据。")
             return
-        try:
-            if game == "chunithm":
-                async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq):
-                    yield r
-            elif self._get_prober(event, "maimai") == "lxns":
-                async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
-                    yield r
-            else:
-                async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
-                    yield r
-        finally:
-            self.lxns._user_token = saved_token
+        if game == "chunithm":
+            async for r in chu_minfo_handler(event, self.lxns, self.chu_data, qq=qq, lxns_token=user_token):
+                yield r
+        elif self._get_prober(event, "maimai") == "lxns":
+            async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data, lxns_token=user_token):
+                yield r
+        else:
+            async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
+                yield r
 
     # ================================================================
     # maimai 专属命令
@@ -907,7 +900,6 @@ class MaiChuPlugin(Star):
     # 正则匹配（不需要唤醒前缀）
     # ================================================================
 
-    @event_message_type(EventMessageType.ALL)
     @event_message_type(EventMessageType.ALL)
     async def _on_message(self, event: AstrMessageEvent):
         """全局消息处理：pending 监听 + 自然语言路由。"""

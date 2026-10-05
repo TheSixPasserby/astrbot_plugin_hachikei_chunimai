@@ -98,7 +98,7 @@ async def mai_guess_music_handler(
             from PIL import Image
             import numpy as np
 
-            cover_path = music_picture_path(music.id, data_mgr._data_dir / "static" / "cover")
+            cover_path = music_picture_path(music.id, data_mgr.cover_dir)
             im = Image.open(cover_path)
             w, h = im.size
             gray = np.array(im.convert("L"))
@@ -182,7 +182,7 @@ async def mai_guess_pic_handler(
         from PIL import Image
         import numpy as np
 
-        cover_path = music_picture_path(music.id, data_mgr._data_dir / "static" / "cover")
+        cover_path = music_picture_path(music.id, data_mgr.cover_dir)
         im = Image.open(cover_path)
         w, h = im.size
         gray = np.array(im.convert("L"))

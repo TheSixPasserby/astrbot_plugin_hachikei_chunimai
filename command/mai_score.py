@@ -102,7 +102,7 @@ async def mai_b50_handler(
         sd_scores = [from_divingfish_chart(c) for c in sd_charts]
         dx_scores = [from_divingfish_chart(c) for c in dx_charts]
 
-        cover_dir = data_mgr._data_dir / "static" / "cover"
+        cover_dir = data_mgr.cover_dir
         cover_cache = CoverCache(cover_dir, http_proxy=getattr(api, "_http_proxy", None))
         covers = await _prefetch_covers(
             cover_cache, sd_scores + dx_scores, lambda s: s.music_id
@@ -487,6 +487,7 @@ async def lxns_mai_b50_handler(
     lxns: LxnsAPI,
     qq: int | None = None,
     music_data: MusicDataManager | None = None,
+    lxns_token: str = "",
     **_: Any,
 ):
     """落雪 maimai DX B50 查询。"""
@@ -526,9 +527,9 @@ async def lxns_mai_b50_handler(
         friend_code = None
         use_oauth = False
 
-        if lxns._user_token:
+        if lxns_token:
             try:
-                player = await lxns.oauth_get_player(lxns._user_token, "maimai")
+                player = await lxns.oauth_get_player(lxns_token, "maimai")
                 friend_code = player.get("friend_code")
                 use_oauth = True
             except Exception as e:
@@ -549,7 +550,7 @@ async def lxns_mai_b50_handler(
 
         # 获取 B50
         if use_oauth:
-            bests_data = await lxns.oauth_get_bests(lxns._user_token, "maimai")
+            bests_data = await lxns.oauth_get_bests(lxns_token, "maimai")
         else:
             bests_data = await lxns.mai_bests(friend_code)
 
@@ -569,7 +570,7 @@ async def lxns_mai_b50_handler(
         standard_scores = [_to_unified(s) for s in standard]
         dx_scores = [_to_unified(s) for s in dx]
 
-        cover_dir = music_data._data_dir / "static" / "cover" if music_data else None
+        cover_dir = music_data.cover_dir if music_data else None
         cover_cache = CoverCache(cover_dir, lxns=lxns, http_proxy=getattr(lxns, "_http_proxy", None)) if cover_dir else None
         covers = await _prefetch_covers(
             cover_cache, standard_scores + dx_scores, lambda s: s.music_id
@@ -633,6 +634,7 @@ async def lxns_mai_minfo_handler(
     lxns: LxnsAPI,
     qq: int | None = None,
     music_data: MusicDataManager | None = None,
+    lxns_token: str = "",
     **_: Any,
 ):
     """落雪 maimai DX 单曲成绩查询。"""
@@ -663,9 +665,9 @@ async def lxns_mai_minfo_handler(
         # 获取玩家信息：OAuth > QQ 开发者 API
         fc = None
         use_oauth = False
-        if lxns._user_token:
+        if lxns_token:
             try:
-                player = await lxns.oauth_get_player(lxns._user_token, "maimai")
+                player = await lxns.oauth_get_player(lxns_token, "maimai")
                 fc = player.get("friend_code")
                 use_oauth = True
             except Exception as e:
@@ -682,7 +684,7 @@ async def lxns_mai_minfo_handler(
         search_name = resolved_name or (None if query.isdigit() else query)
 
         if use_oauth:
-            all_scores = await lxns.oauth_get_scores(lxns._user_token, "maimai")
+            all_scores = await lxns.oauth_get_scores(lxns_token, "maimai")
             if search_id:
                 score = next((s for s in all_scores if s.get("id") == search_id), None)
             elif search_name:

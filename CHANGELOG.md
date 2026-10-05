@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.1 (2026-10-06)
+
+### 修复（第二轮架构收口）
+- **P0 凭据串线**：移除 `LxnsAPI._user_token` 共享可变状态，改为显式 `access_token` 传参。
+  原实现用 save/restore 模式临时改共享成员，异步并发下存在跨用户凭据串线风险
+  （OAuth token 尤其敏感）
+  - `LxnsAPI._user_get` / `mai_user_player` / `mai_user_scores` / `chu_user_player` /
+    `chu_user_scores` 新增 `access_token` 参数
+  - 落雪 handler（chu_b30 / chu_minfo / lxns_mai_b50 / lxns_mai_minfo）新增 `lxns_token` 参数
+  - `main.py` 去掉 save/restore，改为显式传 token
+- **P1 跨模块摸 private**：`MusicDataManager` 新增 `cover_dir` / `lxns` / `data_dir` property，
+  消除 `_data_dir` / `_lxns` 跨模块访问
+- **重复 decorator**：删除 `_on_message` 上重复的 `@event_message_type`
+- **terminate 资源泄漏**：`AliasPushService.stop()` 补 `await task`；`main.terminate()` 补
+  `_qr_sync.close()`
+
+### 新增
+- 恢复 CI（`.github/workflows/ci.yml`）：Python 3.11/3.12 跑 pytest + 插件 AST smoke check
+- `tests/test_credential_isolation.py`：5 个用例，锁定 token 不共享
+
 ## v0.4.0 (2026-10-06)
 
 ### 重构
