@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.0 (2026-10-06)
+
+### 依赖
+- maimai-py `1.4.3` → `1.6.0`（maimai-ffi 0.7.0 → 0.7.1）
+
+### 破坏性变更适配
+- maimai-py 1.6.0 移除 `DivingFishProvider` 的 `developer_token` 参数，改用账号 OAuth：
+  - `QRSyncService` 构造参数 `df_dev_token` → `df_client_id` / `df_client_secret`
+  - 未配置 OAuth 凭据时退回无参构造，**Import-Token 同步路径不受影响**
+  - `main.py` 相应改为读取新配置键
+- `_conf_schema.json` 新增 `divingfish_client_id` / `divingfish_client_secret`
+- `describe_error()` 补上新异常 `PlayerNotAuthorizedError` / `RateLimitError` 中文提示
+
+### 修复
+- `describe_error()` 在 `_imports` 尚未加载时会把所有异常退化成原始消息
+  （异常可能早于任何 client 调用出现，如二维码阶段失败），改为惰性加载
+
+### 新增
+- `tests/test_qr_sync_migration.py`：锁定 1.6.0 迁移结果（10 个用例）
+
 ## v0.2.10 (2026-10-05)
 
 ### 修复

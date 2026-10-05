@@ -53,7 +53,7 @@ from .utils import is_group_message
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.2.10",
+    "0.3.0",
     "",
 )
 class MaiChuPlugin(Star):
@@ -155,8 +155,15 @@ class MaiChuPlugin(Star):
         try:
             from .qr_sync import QRSyncService
             proxy = self.http_proxy
-            df_dev_token = self.config.get("mai_divingfish_token", "")
-            self._qr_sync = QRSyncService(timeout=self.timeout, proxy=proxy, df_dev_token=df_dev_token)
+            # maimai-py 1.6.0：DivingFish 改为账号 OAuth（旧式开发者 Token 参数已移除）
+            df_client_id = self.config.get("divingfish_client_id", "")
+            df_client_secret = self.config.get("divingfish_client_secret", "")
+            self._qr_sync = QRSyncService(
+                timeout=self.timeout,
+                proxy=proxy,
+                df_client_id=df_client_id,
+                df_client_secret=df_client_secret,
+            )
             logger.info("QR 同步服务已初始化（maimai-py）")
         except Exception as e:
             logger.warning(f"QR 同步服务初始化失败（maimai-py 未安装？）: {e}")

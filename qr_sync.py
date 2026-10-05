@@ -64,10 +64,18 @@ class SyncResult:
 class QRSyncService:
     """SGWCMAID 二维码同步服务（基于 maimai-py）。"""
 
-    def __init__(self, timeout: float = 30.0, proxy: str = "", df_dev_token: str = "") -> None:
+    def __init__(
+        self,
+        timeout: float = 30.0,
+        proxy: str = "",
+        df_client_id: str = "",
+        df_client_secret: str = "",
+    ) -> None:
         self._timeout = timeout
         self._proxy = proxy.strip() or None
-        self._df_dev_token = df_dev_token.strip() or ""
+        # maimai-py 1.6.0 起 DivingFishProvider 改用账号 OAuth，旧式开发者 Token 参数已移除
+        self._df_client_id = df_client_id.strip() or ""
+        self._df_client_secret = df_client_secret.strip() or ""
         self._client: Any = None
         self._imports: dict[str, Any] | None = None
         self._used_sgids: dict[str, float] = {}
@@ -86,7 +94,7 @@ class QRSyncService:
             from maimai_py import exceptions as maimai_exceptions
         except ImportError as e:
             raise RuntimeError(
-                "缺少 maimai-py 依赖，请安装：pip install maimai-py>=1.4.2"
+                "缺少 maimai-py 依赖，请安装：pip install maimai-py>=1.6.0"
             ) from e
 
         self._imports = {
@@ -103,6 +111,9 @@ class QRSyncService:
             "ArcadeIdentifierError": getattr(maimai_exceptions, "ArcadeIdentifierError", None),
             "InvalidPlayerIdentifierError": getattr(maimai_exceptions, "InvalidPlayerIdentifierError", None),
             "PrivacyLimitationError": getattr(maimai_exceptions, "PrivacyLimitationError", None),
+            # maimai-py 1.6.0 新增（DivingFish OAuth）
+            "PlayerNotAuthorizedError": getattr(maimai_exceptions, "PlayerNotAuthorizedError", None),
+            "RateLimitError": getattr(maimai_exceptions, "RateLimitError", None),
         }
         return self._imports
 
@@ -132,10 +143,18 @@ class QRSyncService:
             return self._load_imports()["ArcadeProvider"]()
 
     def _divingfish_provider(self) -> Any:
+        """水鱼 provider。
+
+        1.6.0 起支持 OAuth（client_id/client_secret）；未配置时退回无参构造，
+        Import-Token 路径（PlayerIdentifier(credentials=token)）依然可用。
+        """
+        cls = self._load_imports()["DivingFishProvider"]
+        if not self._df_client_id or not self._df_client_secret:
+            return cls()
         try:
-            return self._load_imports()["DivingFishProvider"](developer_token=self._df_dev_token)
+            return cls(client_id=self._df_client_id, client_secret=self._df_client_secret)
         except TypeError:
-            return self._load_imports()["DivingFishProvider"]()
+            return cls()
 
     def _lxns_provider(self) -> Any:
         return self._load_imports()["LXNSProvider"]()
@@ -217,7 +236,12 @@ class QRSyncService:
 
     def describe_error(self, exc: BaseException) -> str:
         """将异常转换为用户友好的中文消息。"""
-        imports = self._imports or {}
+        # 惰性填充：异常可能早于任何 client 调用出现（如二维码阶段就失败），
+        # 此时 _imports 仍为 None，会导致所有异常都退化成原始消息。
+        try:
+            imports = self._load_imports()
+        except Exception:
+            imports = self._imports or {}
         checks = (
             ("AimeServerError", "二维码无效或已过期，请重新获取。"),
             ("TitleServerBlockedError", "舞萌标题服务器拒绝了请求，可能需要配置代理（http_proxy）或稍后再试。"),
@@ -227,6 +251,8 @@ class QRSyncService:
             ("ArcadeError", "机台数据源返回异常，可能是二维码过期或服务波动。"),
             ("InvalidPlayerIdentifierError", "查分器 Token 无效，请重新绑定。"),
             ("PrivacyLimitationError", "查分器账号未允许第三方访问，请在查分器中开启权限。"),
+            ("PlayerNotAuthorizedError", "水鱼账号未授权本应用，请完成 OAuth 授权（可能缺少所需 scope）。"),
+            ("RateLimitError", "水鱼接口请求超限（每日配额或换票限流），请稍后再试。"),
         )
         for class_name, message in checks:
             cls = imports.get(class_name)

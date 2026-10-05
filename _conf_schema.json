@@ -17,6 +17,18 @@
     "description": "DivingFish 查分器 Token",
     "hint": "在 diving-fish.com 个人设置中获取的 Developer Token"
   },
+  "divingfish_client_id": {
+    "type": "string",
+    "default": "",
+    "description": "DivingFish OAuth Client ID",
+    "hint": "maimai-py 1.6.0 起水鱼改用账号 OAuth；在 auth.diving-fish.com/console 登记应用获取。留空则二维码同步水鱼走 Import-Token 方式"
+  },
+  "divingfish_client_secret": {
+    "type": "string",
+    "default": "",
+    "description": "DivingFish OAuth Client Secret",
+    "hint": "同上，生成后只显示一次，请立即保存。留空则二维码同步水鱼走 Import-Token 方式"
+  },
   "http_proxy": {
     "type": "string",
     "default": "",
