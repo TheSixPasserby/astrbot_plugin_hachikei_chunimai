@@ -53,11 +53,20 @@ from .utils import is_group_message
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.3.0",
+    "0.3.1",
     "",
 )
 class MaiChuPlugin(Star):
     """maimai DX / CHUNITHM 综合助手插件。"""
+
+    # 未绑定任何查分凭据时的引导文案
+    _BIND_HINT = (
+        "⚠️ 还没有绑定任何查询方式，请先执行下面任一命令：\n"
+        "• `绑定QQ <你的QQ号>` — 按 QQ 号查分（最简单）\n"
+        "• `绑定水鱼` — 绑定水鱼 Import-Token，无需 QQ 即可查分\n"
+        "• `绑定落雪` — 授权落雪查分器\n"
+        "发送 `绑定账号` 可随时查看当前绑定状态。"
+    )
 
     def __init__(self, context: Context, config: AstrBotConfig | dict) -> None:
         super().__init__(context)
@@ -249,6 +258,13 @@ class MaiChuPlugin(Star):
             return int(qq)
         return None
 
+    def _get_df_token(self, event: AstrMessageEvent) -> str:
+        """取水鱼 Import-Token（用于水鱼公开查分接口的 token 查询）。"""
+        try:
+            return self.user_store.get_divingfish_token(self._user_key(event)) or ""
+        except Exception:
+            return ""
+
     async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
         """获取用户的有效落雪 token：过期时才刷新，不无条件刷新。"""
         user_key = self._user_key(event)
@@ -432,10 +448,14 @@ class MaiChuPlugin(Star):
         if user_token:
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
+        df_token = self._get_df_token(event)
         prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
-        logger.info(f"[B50] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
-        if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
+        logger.info(
+            f"[B50] game={game}, prober={prober}, qq={qq}, "
+            f"has_lxns_token={bool(user_token)}, has_df_token={bool(df_token)}"
+        )
+        if qq is None and not user_token and not df_token:
+            yield self._message(self._BIND_HINT)
             return
         if game == "chunithm" and not self._chu_ready():
             yield self._message("⚠️ CHUNITHM 曲库未就绪，请稍后重试或让管理员更新数据。")
@@ -451,7 +471,7 @@ class MaiChuPlugin(Star):
                 async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
-                async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq):
+                async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                     yield r
         finally:
             self.lxns._user_token = saved_token
@@ -463,10 +483,14 @@ class MaiChuPlugin(Star):
         if user_token:
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
+        df_token = self._get_df_token(event)
         prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
-        logger.info(f"[minfo] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
-        if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
+        logger.info(
+            f"[minfo] game={game}, prober={prober}, qq={qq}, "
+            f"has_lxns_token={bool(user_token)}, has_df_token={bool(df_token)}"
+        )
+        if qq is None and not user_token and not df_token:
+            yield self._message(self._BIND_HINT)
             return
         if game == "chunithm" and not self._chu_ready():
             yield self._message("⚠️ CHUNITHM 曲库未就绪，请稍后重试或让管理员更新数据。")
@@ -482,7 +506,7 @@ class MaiChuPlugin(Star):
                 async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
-                async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq):
+                async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                     yield r
         finally:
             self.lxns._user_token = saved_token
@@ -510,7 +534,11 @@ class MaiChuPlugin(Star):
         if self._is_group_disabled(event):
             return
         qq = self._get_qq(event)
-        async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq):
+        df_token = self._get_df_token(event)
+        if qq is None and not df_token:
+            yield self._message(self._BIND_HINT)
+            return
+        async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
             yield r
 
     @command("mailine")
@@ -587,7 +615,11 @@ class MaiChuPlugin(Star):
             yield self._message("CHUNITHM 暂不支持 ginfo。")
         else:
             qq = self._get_qq(event)
-            async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq):
+            df_token = self._get_df_token(event)
+            if qq is None and not df_token:
+                yield self._message(self._BIND_HINT)
+                return
+            async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                 yield r
 
     @command("分数线")
@@ -767,7 +799,11 @@ class MaiChuPlugin(Star):
         prober = self._get_prober(event, "maimai")
         lxns_token = await self._get_lxns_token(event)
         qq = self._get_qq(event)
-        async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq):
+        df_token = self._get_df_token(event)
+        if qq is None and not lxns_token and not df_token:
+            yield self._message(self._BIND_HINT)
+            return
+        async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq, token=df_token):
             yield r
 
     # ================================================================
@@ -942,12 +978,13 @@ class MaiChuPlugin(Star):
             # 版牌进度 / 等级进度
             if re.search(r"进度\s*$", text):
                 qq = self._get_qq(event)
+                df_token = self._get_df_token(event)
                 # 等级进度以数字开头（如 "12 SSS进度"），版牌进度以版本字开头（如 "真極进度"）
                 if re.match(r"^\d", text):
-                    async for r in mai_level_progress_handler(event, self.api, self.music_data, qq=qq):
+                    async for r in mai_level_progress_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                         yield r
                     return
-                async for r in mai_plate_progress_handler(event, self.api, self.music_data, qq=qq):
+                async for r in mai_plate_progress_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                     yield r
                 return
 
@@ -956,7 +993,8 @@ class MaiChuPlugin(Star):
                 prober = self._get_prober(event, "maimai")
                 lxns_token = await self._get_lxns_token(event)
                 qq = self._get_qq(event)
-                async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq):
+                df_token = self._get_df_token(event)
+                async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq, token=df_token):
                     yield r
                 return
 

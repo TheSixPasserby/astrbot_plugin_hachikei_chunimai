@@ -73,7 +73,15 @@ class CoverCache:
             if p.exists():
                 return Image.open(p).convert("RGBA")
         except Exception as e:
-            logger.warning(f"封面下载失败 ({song_id}): {e}")
+            # 701/451 = 该歌曲水鱼侧无封面数据，属正常情况（走占位图），降为 debug
+            # 避免每次 b50 都刷一串 WARN
+            msg = str(e)
+            level = (
+                logger.debug
+                if any(code in msg for code in ("701", "451"))
+                else logger.warning
+            )
+            level(f"封面下载失败 ({song_id}): {msg}")
         return _placeholder()
 
     async def get_many(self, song_ids: list[int]) -> list[Image.Image]:

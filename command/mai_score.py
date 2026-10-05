@@ -78,6 +78,7 @@ async def mai_b50_handler(
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
     qq: int | None = None,
+    token: str | None = None,
     **_: Any,
 ):
     """生成 Best 50 图片。"""
@@ -87,7 +88,7 @@ async def mai_b50_handler(
         if qq is None:
             qq = _extract_qq_from_at(event)
 
-        user_info = await api.query_user_b50(qqid=qq, username=username)
+        user_info = await api.query_user_b50(qqid=qq, username=username, token=token)
 
         if not user_info.charts:
             yield event.plain_result("未找到游玩记录。")
@@ -440,13 +441,14 @@ async def mai_my_ranking_handler(
     event: AstrMessageEvent,
     api: MaimaiAPI,
     qq: int | None = None,
+    token: str | None = None,
     **_: Any,
 ):
     """查看我的排名。"""
     try:
         if qq is None:
             qq = _extract_qq_from_at(event)
-        user_info = await api.query_user_b50(qqid=qq)
+        user_info = await api.query_user_b50(qqid=qq, token=token)
         ranking = await api.rating_ranking()
 
         position = None

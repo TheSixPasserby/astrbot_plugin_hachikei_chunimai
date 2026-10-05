@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.1 (2026-10-06)
+
+### 新增
+- **水鱼 Import-Token 直接查分**：`b50` / `minfo` / `ginfo` / 牌桌进度 / 等级进度 / 推分
+  支持用已绑定的水鱼 Import-Token 查询，不再强制要求绑定 QQ
+  （`query_user_b50` 凭据优先级：Import-Token > QQ > 用户名）
+
+### 修复
+- **未绑定时给出可执行指引**：原先直接输出「用户不存在。」让用户手足无措。
+  现在 b50 / minfo / ginfo / mairise 未绑定任何凭据时输出 `_BIND_HINT`，
+  列出 `绑定QQ` / `绑定水鱼` / `绑定落雪` / `绑定账号`
+- 查分器类错误文案补充下一步命令（`UserNotExistsError` / `UserNotFoundError` /
+  `TokenNotFoundError`）
+- 日志字段 `has_token` → `has_lxns_token` + `has_df_token`，避免把落雪 token
+  误读成水鱼 token（此前排查「绑定水鱼后 b50 报用户不存在」时被误导）
+- 封面下载失败 701/451（该歌曲水鱼侧无封面）从 WARN 降为 DEBUG，不再刷日志噪音
+
+### 新增
+- `tests/test_df_token_query.py`：10 个用例，含 AST 作用域校验（防 df_token 未定义）
+
 ## v0.3.0 (2026-10-06)
 
 ### 依赖

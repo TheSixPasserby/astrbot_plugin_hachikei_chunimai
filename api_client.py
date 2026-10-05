@@ -114,13 +114,26 @@ class MaimaiAPI:
         return await self._request_prober("GET", "/chart_stats")
 
     async def query_user_b50(
-        self, *, qqid: int | None = None, username: str | None = None
+        self,
+        *,
+        qqid: int | None = None,
+        username: str | None = None,
+        token: str | None = None,
     ) -> UserInfo:
+        """查询玩家 B50。
+
+        凭据优先级：Import-Token > QQ 号 > 用户名。
+        传 token 时走水鱼 Import-Token 查分，未绑 QQ 也能查。
+        """
         payload: dict[str, Any] = {"b50": True}
-        if qqid:
+        if token:
+            payload["token"] = token
+        elif qqid:
             payload["qq"] = qqid
-        if username:
+        elif username:
             payload["username"] = username
+        else:
+            raise UserNotFoundError
         data = await self._request_prober("POST", "/query/player", json=payload)
         return UserInfo.model_validate(data)
 

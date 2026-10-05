@@ -99,6 +99,7 @@ async def mai_rise_score_handler(
     lxns: Any | None = None,
     lxns_token: str = "",
     qq: int | None = None,
+    token: str | None = None,
     **_: Any,
 ):
     """推分建议。"""
@@ -140,7 +141,7 @@ async def mai_rise_score_handler(
                     "ra": s.get("dx_rating", 0) or s.get("rating", 0),
                 })())
         else:
-            user_info = await api.query_user_b50(qqid=qq, username=username)
+            user_info = await api.query_user_b50(qqid=qq, username=username, token=token)
             if not user_info.charts:
                 yield event.plain_result("未找到游玩记录。请先绑定查分器。")
                 return
@@ -289,6 +290,7 @@ async def mai_level_progress_handler(
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
     qq: int | None = None,
+    token: str | None = None,
     **_: Any,
 ):
     """等级进度。"""
@@ -310,7 +312,7 @@ async def mai_level_progress_handler(
         # 评价参数必须真正参与过滤：解析为目标达成率阈值
         threshold = _rank_threshold(rank_str) if rank_str else None
 
-        user_info = await api.query_user_b50(qqid=qq, username=username)
+        user_info = await api.query_user_b50(qqid=qq, username=username, token=token)
         if not user_info.charts:
             yield event.plain_result("未找到游玩记录。")
             return
@@ -384,6 +386,7 @@ async def mai_level_achievement_list_handler(
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
     qq: int | None = None,
+    token: str | None = None,
     **_: Any,
 ):
     """分数列表。"""
@@ -397,7 +400,7 @@ async def mai_level_achievement_list_handler(
         page = int(m.group(2)) if m.group(2) else 1
         username = m.group(3)
 
-        user_info = await api.query_user_b50(qqid=qq, username=username)
+        user_info = await api.query_user_b50(qqid=qq, username=username, token=token)
         if not user_info.charts:
             yield event.plain_result("未找到游玩记录。")
             return
