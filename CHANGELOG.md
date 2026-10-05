@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.10 (2026-10-05)
+
+### 修复
+- **插件无法加载**：`_get_lxns_token` / `_get_qq` 在 v0.2.7 拆分 `command/account.py` 时被误删，
+  但 `main.py` 内仍有 13 处调用，导致加载阶段直接抛
+  `AttributeError: 'MaiChuPlugin' object has no attribute '_get_lxns_token'`。已恢复两个方法。
+
+### 新增
+- `tests/test_plugin_load.py`：用最小 AstrBot 桩件真实 import + 实例化 `MaiChuPlugin`，
+  并用 AST 静态校验 `main.py` 中所有 `self.*` 均有定义，防止同类回归。
+
 ## v0.2.9 (2026-10-03)
 
 ### 重构

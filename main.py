@@ -53,7 +53,7 @@ from .utils import is_group_message
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.2.9",
+    "0.2.10",
     "",
 )
 class MaiChuPlugin(Star):
@@ -224,6 +224,56 @@ class MaiChuPlugin(Star):
     @staticmethod
     def _user_key(event: AstrMessageEvent) -> str:
         return f"{event.get_platform_name()}:{event.get_sender_id()}"
+
+    def _get_qq(self, event: AstrMessageEvent) -> int | None:
+        """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
+        # 1. 尝试从 @提及 获取
+        try:
+            from astrbot.api.message_components import At
+            for comp in event.get_messages():
+                if isinstance(comp, At):
+                    return int(comp.qq)
+        except Exception:
+            pass
+        # 2. 从绑定记录获取
+        user_key = self._user_key(event)
+        qq = self.user_store.get_qq(user_key)
+        if qq and qq.isdigit():
+            return int(qq)
+        return None
+
+    async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
+        """获取用户的有效落雪 token：过期时才刷新，不无条件刷新。"""
+        user_key = self._user_key(event)
+        token = self.user_store.get_lxns_token(user_key)
+        if not token:
+            return ""
+
+        # access_token 有效期内直接复用（提前 60s 预留缓冲），不刷新
+        expires_at = self.user_store.get_lxns_expires_at(user_key)
+        if expires_at and time.time() < expires_at - 60:
+            return token
+
+        # 过期/未知时用 refresh_token 换新 token
+        refresh_token = self.user_store.get_lxns_refresh_token(user_key)
+        if refresh_token:
+            client_id = self.config.get("lxns_client_id", "")
+            client_secret = self.config.get("lxns_client_secret", "")
+            if client_id and client_secret:
+                try:
+                    new_token, new_refresh = await self.lxns.oauth_refresh(
+                        refresh_token, client_id, client_secret
+                    )
+                    # Lxns access_token 有效期为 15 分钟
+                    new_expires = time.time() + 15 * 60
+                    await self.user_store.set_lxns_token(
+                        user_key, new_token, new_refresh, expires_at=new_expires
+                    )
+                    return new_token
+                except Exception as e:
+                    logger.debug(f"OAuth token 刷新失败，使用现有 token: {e}")
+
+        return token
 
     @staticmethod
     def _table_name(game: str) -> str:
