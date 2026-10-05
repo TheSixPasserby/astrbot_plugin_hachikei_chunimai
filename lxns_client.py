@@ -8,6 +8,8 @@ from aiohttp import ClientSession, ClientTimeout
 
 from .errors import ServerError, UserNotFoundError
 
+from .utils import make_proxy
+
 try:
     from astrbot.api import logger
 except ImportError:
@@ -24,8 +26,9 @@ class LxnsAPI:
     MAIMAI_ASSETS = "https://assets2.lxns.net/maimai"
     CHUNITHM_ASSETS = "https://assets2.lxns.net/chunithm"
 
-    def __init__(self, timeout: int = 30) -> None:
+    def __init__(self, timeout: int = 30, http_proxy: str | None = None) -> None:
         self._timeout = timeout
+        self._http_proxy = make_proxy(http_proxy)
         self._dev_key: str = ""
         self._user_token: str = ""
         self._session: ClientSession | None = None
@@ -36,7 +39,10 @@ class LxnsAPI:
 
     async def _get_session(self) -> ClientSession:
         if self._session is None or self._session.closed:
-            self._session = ClientSession(timeout=ClientTimeout(total=self._timeout))
+            self._session = ClientSession(
+                timeout=ClientTimeout(total=self._timeout),
+                trust_env=self._http_proxy is None,
+            )
         return self._session
 
     async def close(self) -> None:
@@ -56,7 +62,10 @@ class LxnsAPI:
     async def _get(self, path: str, headers: dict | None = None, **kwargs: Any) -> Any:
         session = await self._get_session()
         url = f"{self.BASE_URL}{path}"
-        async with session.get(url, headers=headers or self._dev_headers(), **kwargs) as res:
+        async with session.get(
+            url, headers=headers or self._dev_headers(),
+            proxy=self._http_proxy, **kwargs
+        ) as res:
             data = await res.json()
             if not data.get("success"):
                 code = data.get("code", res.status)
@@ -78,7 +87,7 @@ class LxnsAPI:
         """用授权码换取 access_token + refresh_token。返回 (access_token, refresh_token)。"""
         session = await self._get_session()
         url = f"{self.BASE_URL}/oauth/token"
-        async with session.post(url, data={
+        async with session.post(url, proxy=self._http_proxy, data={
             "grant_type": "authorization_code",
             "code": code,
             "client_id": client_id,
@@ -96,7 +105,7 @@ class LxnsAPI:
         """用 refresh_token 刷新 access_token。返回 (new_access_token, new_refresh_token)。"""
         session = await self._get_session()
         url = f"{self.BASE_URL}/oauth/token"
-        async with session.post(url, data={
+        async with session.post(url, proxy=self._http_proxy, data={
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
             "client_id": client_id,
@@ -114,7 +123,7 @@ class LxnsAPI:
         session = await self._get_session()
         url = f"{self.BASE_URL}/user/{game}/player"
         headers = {"Authorization": f"Bearer {access_token}"}
-        async with session.get(url, headers=headers) as res:
+        async with session.get(url, headers=headers, proxy=self._http_proxy) as res:
             data = await res.json()
             if not data.get("success"):
                 msg = data.get("message", "未知错误")
@@ -126,7 +135,7 @@ class LxnsAPI:
         session = await self._get_session()
         url = f"{self.BASE_URL}/user/{game}/player/bests"
         headers = {"Authorization": f"Bearer {access_token}"}
-        async with session.get(url, headers=headers) as res:
+        async with session.get(url, headers=headers, proxy=self._http_proxy) as res:
             data = await res.json()
             if not data.get("success"):
                 msg = data.get("message", "未知错误")
@@ -138,7 +147,7 @@ class LxnsAPI:
         session = await self._get_session()
         url = f"{self.BASE_URL}/user/{game}/player/scores"
         headers = {"Authorization": f"Bearer {access_token}"}
-        async with session.get(url, headers=headers) as res:
+        async with session.get(url, headers=headers, proxy=self._http_proxy) as res:
             data = await res.json()
             if not data.get("success"):
                 msg = data.get("message", "未知错误")
@@ -188,7 +197,7 @@ class LxnsAPI:
         # 公共 API，不带认证头
         session = await self._get_session()
         url = f"{self.BASE_URL}/maimai/song/list"
-        async with session.get(url, params=params) as res:
+        async with session.get(url, params=params, proxy=self._http_proxy) as res:
             data = await res.json()
             if isinstance(data, dict) and "songs" in data:
                 return data
@@ -203,7 +212,7 @@ class LxnsAPI:
         """获取别名列表（公共 API）。返回 {aliases[]}"""
         session = await self._get_session()
         url = f"{self.BASE_URL}/maimai/alias/list"
-        async with session.get(url) as res:
+        async with session.get(url, proxy=self._http_proxy) as res:
             data = await res.json()
             if isinstance(data, dict) and "aliases" in data:
                 return data
@@ -254,7 +263,7 @@ class LxnsAPI:
         # 公共 API，不带认证头
         session = await self._get_session()
         url = f"{self.BASE_URL}/chunithm/song/list"
-        async with session.get(url, params=params) as res:
+        async with session.get(url, params=params, proxy=self._http_proxy) as res:
             data = await res.json()
             if isinstance(data, dict) and "songs" in data:
                 return data
@@ -269,7 +278,7 @@ class LxnsAPI:
         """获取别名列表（公共 API）。返回 {aliases[]}"""
         session = await self._get_session()
         url = f"{self.BASE_URL}/chunithm/alias/list"
-        async with session.get(url) as res:
+        async with session.get(url, proxy=self._http_proxy) as res:
             data = await res.json()
             if isinstance(data, dict) and "aliases" in data:
                 return data

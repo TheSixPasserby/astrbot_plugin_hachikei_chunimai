@@ -28,11 +28,15 @@ def music_picture_path(music_id: int | str, cover_dir: Path) -> Path:
 
 
 def image_to_base64(img: Image.Image, fmt: str = "PNG") -> str:
-    """将 PIL 图片转为 base64 字符串（带 data: 前缀）。"""
+    """将 PIL 图片转为**原始** base64 字符串（不含 ``base64://`` 前缀）。
+
+    供 ``MessageEventResult.base64_image()`` 直接使用——该方法内部会自行拼接
+    ``base64://`` 前缀（见 AstrBot ``Image.fromBase64``）。若这里再带前缀，
+    会产生 ``base64://base64://...`` 的重复前缀 bug。
+    """
     buf = BytesIO()
     img.save(buf, fmt)
-    b64 = base64.b64encode(buf.getvalue()).decode()
-    return f"base64://{b64}"
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 def pie_chart(

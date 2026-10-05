@@ -19,6 +19,29 @@ if TYPE_CHECKING:
     from ..api_client import MaimaiAPI
 
 
+def _rise_suggestion(chart, music, level: str | None = None) -> tuple | None:
+    """计算单首成绩的推分建议（纯函数，可测试）。
+
+    严格按 ``song_id + level_index`` 锁定谱面：
+    - 未游玩的谱面/越界难度 → 返回 None（不继承其他歌曲定数）。
+    - ``level`` 过滤在锁定难度之后进行。
+    - 新 Ra 基于该谱面对应定数 ``music.ds[idx]``。
+    - 只有新 Ra 严格大于旧 Ra 才给出建议。
+
+    返回 ``(gain, title, level_label, old_ra, new_ra)`` 或 ``None``。
+    """
+    idx = chart.level_index
+    if idx is None or idx < 0 or idx >= len(music.ds):
+        return None
+    if level and music.level[idx] != level:
+        return None
+    ds = music.ds[idx]
+    new_ra = MusicDataManager.compute_ra(ds, chart.achievements + 1.0)
+    if new_ra <= chart.ra:
+        return None
+    return (new_ra - chart.ra, chart.title, music.level[idx], chart.ra, new_ra)
+
+
 async def mai_rating_table_handler(
     event: AstrMessageEvent,
     data_mgr: MusicDataManager,
@@ -76,6 +99,7 @@ async def mai_rise_score_handler(
     lxns: Any | None = None,
     lxns_token: str = "",
     qq: int | None = None,
+    token: str | None = None,
     **_: Any,
 ):
     """推分建议。"""
@@ -117,7 +141,7 @@ async def mai_rise_score_handler(
                     "ra": s.get("dx_rating", 0) or s.get("rating", 0),
                 })())
         else:
-            user_info = await api.query_user_b50(qqid=qq, username=username)
+            user_info = await api.query_user_b50(qqid=qq, username=username, token=token)
             if not user_info.charts:
                 yield event.plain_result("未找到游玩记录。请先绑定查分器。")
                 return
@@ -126,22 +150,19 @@ async def mai_rise_score_handler(
             if user_info.charts.dx:
                 all_charts.extend(user_info.charts.dx)
 
-        # 按 Ra 排序，找到可以提升的歌曲
+        # 按 Ra 升序，优先找提升空间大的歌曲
         all_charts.sort(key=lambda c: c.ra)
         suggestions = []
-        current_ra = sum(c.ra for c in all_charts[:50]) if len(all_charts) >= 50 else sum(c.ra for c in all_charts)
 
         for chart in all_charts[:50]:
             music = data_mgr.music_list.by_id(chart.song_id)
             if not music:
                 continue
-            for i, ds in enumerate(music.ds):
-                if level and music.level[i] != level:
-                    continue
-                new_ra = data_mgr.compute_ra(ds, chart.achievements + 1.0)
-                if new_ra > chart.ra:
-                    gain = new_ra - chart.ra
-                    suggestions.append((gain, chart.title, music.level[i], chart.ra, new_ra))
+            # 成绩必须锁定到 song_id + level_index 对应的谱面，
+            # 不能用「某首歌的达成率」去套「另一难度/另一首歌」的定数。
+            sug = _rise_suggestion(chart, music, level=level)
+            if sug is not None:
+                suggestions.append(sug)
 
         suggestions.sort(key=lambda x: -x[0])
 
@@ -231,6 +252,22 @@ async def mai_plate_progress_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
+_RANK_THRESHOLDS = {
+    "sss+": 100.5, "sss": 100.0, "ss+": 99.5, "ss": 99.0,
+    "s+": 98.0, "s": 97.0, "aaa": 94.0, "aa": 90.0, "a": 80.0,
+    "bbb": 75.0, "bb": 70.0, "b": 60.0, "c": 50.0, "d": 0.0,
+}
+
+
+def _rank_threshold(rank_str: str) -> float | None:
+    """把评价字符串映射到「达到该评价所需最低达成率」，供等级进度过滤使用。
+
+    与 ``mai_data.achievements_list`` 阈值保持一致。未知评价返回 ``None``。
+    """
+    rank = rank_str.strip().lower()
+    return _RANK_THRESHOLDS.get(rank)
+
+
 def _check_plate_rank(record, rank: str) -> bool:
     """检查成绩是否达到版牌等级要求。"""
     ach = record.achievements
@@ -253,6 +290,7 @@ async def mai_level_progress_handler(
     api: MaimaiAPI,
     data_mgr: MusicDataManager,
     qq: int | None = None,
+    token: str | None = None,
     **_: Any,
 ):
     """等级进度。"""
@@ -271,7 +309,10 @@ async def mai_level_progress_handler(
         page = int(m.group(4)) if m.group(4) else 1
         username = m.group(5)
 
-        user_info = await api.query_user_b50(qqid=qq, username=username)
+        # 评价参数必须真正参与过滤：解析为目标达成率阈值
+        threshold = _rank_threshold(rank_str) if rank_str else None
+
+        user_info = await api.query_user_b50(qqid=qq, username=username, token=token)
         if not user_info.charts:
             yield event.plain_result("未找到游玩记录。")
             return
@@ -292,20 +333,44 @@ async def mai_level_progress_handler(
 
         chart_map = {(c.song_id, c.level_index): c for c in all_charts}
 
-        results = []
+        reached = []
+        not_reached = []
         for music, idx in level_songs:
             chart = chart_map.get((int(music.id), idx))
             ach = chart.achievements if chart else 0
-            results.append((music, idx, ach))
+            if threshold is None:
+                reached.append((music, idx, ach))
+            elif ach >= threshold:
+                reached.append((music, idx, ach))
+            else:
+                not_reached.append((music, idx, ach))
 
-        results.sort(key=lambda x: -x[2])
+        reached.sort(key=lambda x: -x[2])
+        not_reached.sort(key=lambda x: -x[2])
 
-        lines = [f"📊 {level} {rank_str.upper()} 进度 (第{page}页)"]
+        if threshold is None:
+            results = reached
+            lines = [f"📊 {level} 进度 (第{page}页)"]
+        else:
+            label = rank_str.upper()
+            lines = [f"📊 {level} {label} 进度 (第{page}页)"]
+            lines.append(f"已达到 {label}: {len(reached)} 首 | 未达到: {len(not_reached)} 首")
+            results = reached + not_reached
+
         start = (page - 1) * 30
-        for music, idx, ach in results[start:start + 30]:
-            label = DIFF_INDEX_TO_LABEL.get(idx, str(idx))
-            status = achievements_label(ach) if ach > 0 else "未游玩"
-            lines.append(f"  [{label}] {music.title}: {ach:.4f}% ({status})")
+        page_items = results[start:start + 30]
+        for music, idx, ach in page_items:
+            diff_label = DIFF_INDEX_TO_LABEL.get(idx, str(idx))
+            if ach > 0:
+                status = achievements_label(ach)
+                mark = "✅" if (threshold is not None and ach >= threshold) else ""
+                lines.append(f"  {mark}[{diff_label}] {music.title}: {ach:.4f}% ({status})")
+            else:
+                mark = "❌" if threshold is not None else ""
+                lines.append(f"  {mark}[{diff_label}] {music.title}: 未游玩")
+
+        if not page_items:
+            lines.append("  （无数据）")
 
         yield event.plain_result("\n".join(lines))
 
@@ -316,48 +381,3 @@ async def mai_level_progress_handler(
         yield event.plain_result(f"查询失败：{e}")
 
 
-async def mai_level_achievement_list_handler(
-    event: AstrMessageEvent,
-    api: MaimaiAPI,
-    data_mgr: MusicDataManager,
-    qq: int | None = None,
-    **_: Any,
-):
-    """分数列表。"""
-    try:
-        text = event.get_message_str().strip()
-        m = re.match(r"^([0-9]+\.?[0-9]?\+?)分数列表\s?([0-9]+)?\s?(.+)?$", text)
-        if not m:
-            return
-
-        level = m.group(1)
-        page = int(m.group(2)) if m.group(2) else 1
-        username = m.group(3)
-
-        user_info = await api.query_user_b50(qqid=qq, username=username)
-        if not user_info.charts:
-            yield event.plain_result("未找到游玩记录。")
-            return
-
-        all_charts = []
-        if user_info.charts.sd:
-            all_charts.extend(user_info.charts.sd)
-        if user_info.charts.dx:
-            all_charts.extend(user_info.charts.dx)
-
-        # 过滤指定等级
-        matching = [c for c in all_charts if c.level == level]
-        matching.sort(key=lambda c: -c.achievements)
-
-        lines = [f"📊 {level} 分数列表 (第{page}页)"]
-        start = (page - 1) * 30
-        for i, c in enumerate(matching[start:start + 30], start + 1):
-            lines.append(f"  {i}. {c.title}: {c.achievements:.4f}% | Ra:{c.ra}")
-
-        yield event.plain_result("\n".join(lines))
-
-    except MaimaiError as e:
-        yield event.plain_result(describe_error(e))
-    except Exception as e:
-        logger.exception("分数列表异常")
-        yield event.plain_result(f"查询失败：{e}")

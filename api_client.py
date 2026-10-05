@@ -6,6 +6,8 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
 
+from .utils import make_proxy
+
 from .errors import (
     UserNotFoundError, UserNotExistsError, UserDisabledQueryError,
     TokenError, TokenDisableError, TokenNotFoundError,
@@ -24,15 +26,16 @@ class MaimaiAPI:
     MaiProberAPI = "https://www.diving-fish.com/api/maimaidxprober"
     MaiAliasAPI = "https://www.yuzuchan.moe/api/maimaidx"
 
-    def __init__(self, timeout: int = 30) -> None:
+    def __init__(self, timeout: int = 30, http_proxy: str | None = None) -> None:
         self._timeout = timeout
+        self._http_proxy = make_proxy(http_proxy)
         self.token: str | None = None
         self.headers: dict[str, str] | None = None
         self.use_proxy: bool = False
         self._session: ClientSession | None = None
 
-    def configure(self, token: str = "", proxy: bool = False) -> None:
-        self.use_proxy = proxy
+    def configure(self, token: str = "", use_proxy: bool = False) -> None:
+        self.use_proxy = use_proxy
         self.token = token
         if token:
             self.headers = {"developer-token": token}
@@ -49,7 +52,10 @@ class MaimaiAPI:
 
     async def _get_session(self) -> ClientSession:
         if self._session is None or self._session.closed:
-            self._session = ClientSession(timeout=ClientTimeout(total=self._timeout))
+            self._session = ClientSession(
+                timeout=ClientTimeout(total=self._timeout),
+                trust_env=self._http_proxy is None,
+            )
         return self._session
 
     async def close(self) -> None:
@@ -61,7 +67,8 @@ class MaimaiAPI:
     ) -> dict | list:
         session = await self._get_session()
         async with session.request(
-            method, self.prober_url + endpoint, headers=self.headers, **kwargs
+            method, self.prober_url + endpoint, headers=self.headers,
+            proxy=self._http_proxy, **kwargs
         ) as res:
             if res.status == 200:
                 return await res.json()
@@ -89,7 +96,7 @@ class MaimaiAPI:
     async def _request_alias(self, method: str, endpoint: str, **kwargs: Any) -> APIResult:
         session = await self._get_session()
         async with session.request(
-            method, self.alias_url + endpoint, **kwargs
+            method, self.alias_url + endpoint, proxy=self._http_proxy, **kwargs
         ) as res:
             if res.status == 200:
                 data = await res.json()
@@ -107,13 +114,26 @@ class MaimaiAPI:
         return await self._request_prober("GET", "/chart_stats")
 
     async def query_user_b50(
-        self, *, qqid: int | None = None, username: str | None = None
+        self,
+        *,
+        qqid: int | None = None,
+        username: str | None = None,
+        token: str | None = None,
     ) -> UserInfo:
+        """查询玩家 B50。
+
+        凭据优先级：Import-Token > QQ 号 > 用户名。
+        传 token 时走水鱼 Import-Token 查分，未绑 QQ 也能查。
+        """
         payload: dict[str, Any] = {"b50": True}
-        if qqid:
+        if token:
+            payload["token"] = token
+        elif qqid:
             payload["qq"] = qqid
-        if username:
+        elif username:
             payload["username"] = username
+        else:
+            raise UserNotFoundError
         data = await self._request_prober("POST", "/query/player", json=payload)
         return UserInfo.model_validate(data)
 

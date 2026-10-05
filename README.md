@@ -46,7 +46,8 @@ maimai DX & CHUNITHM 综合 AstrBot 插件。
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `mai_divingfish_token` | — | DivingFish Developer Token |
-| `http_proxy` | — | HTTP 代理 |
+| `http_proxy` | — | HTTP 代理（所有外部 HTTP 请求统一走此代理） |
+| `use_yuzuchan_proxy` | `false` | 是否走柚子查分器反代（`proxy.yuzuchan.site`） |
 | `lxns_dev_key` | — | 落雪开发者 API 密钥 |
 | `lxns_client_id` | — | 落雪 OAuth 应用 ID |
 | `lxns_client_secret` | — | 落雪 OAuth 应用密钥 |

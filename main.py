@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 import time
 
@@ -15,49 +14,56 @@ from astrbot.api.star import Context, Star, StarTools
 from .api_client import MaimaiAPI
 from .lxns_client import LxnsAPI
 from .chu_data import ChuDataManager
-from .command.chu_score import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler, chu_alias_query_handler, chu_search_alias_handler
+from .command.chu_score import chu_b30_handler, chu_minfo_handler, chu_search_handler, chu_id_handler
 from .command.mai_score import lxns_mai_b50_handler, lxns_mai_minfo_handler
 from .command.alias import (
     AliasPushService, alias_agree_handler, alias_apply_handler,
-    alias_global_push_handler, alias_local_apply_handler, alias_push_handler,
-    alias_query_handler, alias_status_handler, update_alias_handler,
+    alias_local_apply_handler, alias_push_handler,
+    alias_status_handler, update_alias_handler,
 )
 from .command.mai_guess import (
-    mai_guess_music_handler, mai_guess_pic_handler, mai_guess_solve_handler,
-    mai_reset_guess_handler,
+    mai_guess_music_handler, mai_guess_pic_handler, mai_reset_guess_handler,
 )
 from .command.help import help_handler, admin_help_handler
+from .command.account import AccountService
+from .command.admin import AdminService
+from .command.sync import SyncService
+from .command.nlp import NlpService
 from .command.mai_score import (
     mai_b50_handler, mai_ginfo_handler, mai_minfo_handler, mai_my_ranking_handler,
-    mai_ranking_handler, mai_score_calc_handler, mai_score_line_handler,
+    mai_ranking_handler, mai_score_line_handler,
 )
 from .command.mai_search import (
-    mai_query_by_id_handler, mai_search_alias_handler, mai_search_artist_handler,
+    mai_query_by_id_handler, mai_search_artist_handler,
     mai_search_base_handler, mai_search_bpm_handler, mai_search_charter_handler,
     mai_search_music_handler,
 )
 from .command.mai_table import (
-    mai_level_achievement_list_handler, mai_level_progress_handler,
-    mai_plate_progress_handler, mai_rating_table_handler, mai_rise_score_handler,
+    mai_rating_table_handler, mai_rise_score_handler,
 )
-from .errors import MaimaiError, describe_error
 from .mai_data import MusicDataManager
 from .storage import GroupConfigStore, UserStore
-from .utils import get_platform_adapter_name, is_group_message
 
-VALID_GAMES = {"maimai", "chunithm"}
-GAME_LABELS = {"maimai": "maimai DX", "chunithm": "CHUNITHM"}
 
 
 @register(
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.1.0",
+    "0.4.0",
     "",
 )
 class MaiChuPlugin(Star):
     """maimai DX / CHUNITHM 综合助手插件。"""
+
+    # 未绑定任何查分凭据时的引导文案
+    _BIND_HINT = (
+        "⚠️ 还没有绑定任何查询方式，请先执行下面任一命令：\n"
+        "• `绑定QQ <你的QQ号>` — 按 QQ 号查分（最简单）\n"
+        "• `绑定水鱼` — 绑定水鱼 Import-Token，无需 QQ 即可查分\n"
+        "• `绑定落雪` — 授权落雪查分器\n"
+        "发送 `绑定账号` 可随时查看当前绑定状态与解绑命令。"
+    )
 
     def __init__(self, context: Context, config: AstrBotConfig | dict) -> None:
         super().__init__(context)
@@ -69,25 +75,58 @@ class MaiChuPlugin(Star):
         self.bot_name: str = self.config.get("bot_name", "mai-bot")
         self.enable_reply: bool = self.config.get("enable_reply", True)
         self.timeout: int = self._int_config("request_timeout_seconds", 30)
+        self.http_proxy: str = self.config.get("http_proxy", "") or ""
 
         # 子系统
-        self.api = MaimaiAPI(timeout=self.timeout)
-        self.lxns = LxnsAPI(timeout=self.timeout)
+        self.api = MaimaiAPI(timeout=self.timeout, http_proxy=self.http_proxy)
+        self.lxns = LxnsAPI(timeout=self.timeout, http_proxy=self.http_proxy)
         self.user_store = UserStore(data_dir)
         self.group_store = GroupConfigStore(data_dir)
         self.music_data = MusicDataManager(self.api, data_dir)
         self.chu_data = ChuDataManager(self.lxns, data_dir)
+        self.music_data_ready = False
+        self.chu_data_ready = False
         self.alias_push = AliasPushService(self.api, self.config.get("alias_push_uuid", ""))
         self._qr_sync = None  # QRSyncService，延迟初始化（需要 maimai-py）
 
-        # OAuth 绑定等待状态: {user_key: expire_timestamp}
-        self._pending_oauth: dict[str, float] = {}
-        # token 失效的用户（插件重载时检测）
-        self._expired_tokens: set[str] = set()
-        # 同步数据等待状态: {user_key: (prober, expire_timestamp)}
-        self._pending_sync: dict[str, tuple[str, float]] = {}
-        # 水鱼 Token 等待状态: {user_key: expire_timestamp}
-        self._pending_df: dict[str, float] = {}
+        # 账号绑定服务（封装 OAuth / 水鱼 Token 等待状态）
+        self.account = AccountService(self.user_store, self.group_store, self.config, self.lxns)
+        # 同步服务（封装 SGWCMAID 二维码同步）
+        self.sync = SyncService(
+            user_store=self.user_store,
+            get_qr_sync=lambda: self._qr_sync,
+            get_lxns_token=self._get_lxns_token,
+            user_key_of=self._user_key,
+            message=lambda event, text: MessageEventResult().message(text),
+        )
+        # 自然语言路由服务
+        self.nlp = NlpService(
+            api=self.api,
+            lxns=self.lxns,
+            music_data=self.music_data,
+            chu_data=self.chu_data,
+            is_group_disabled=self._is_group_disabled,
+            resolve_game=self._resolve_game,
+            get_qq=self._get_qq,
+            get_df_token=self._get_df_token,
+            get_lxns_token=self._get_lxns_token,
+            get_prober=self._get_prober,
+            user_key_of=self._user_key,
+            message=lambda event, text: MessageEventResult().message(text),
+        )
+        self.admin = AdminService(
+            user_store=self.user_store,
+            group_store=self.group_store,
+            config=self.config,
+            context=context,
+            music_data=self.music_data,
+            chu_data=self.chu_data,
+            get_qr_sync=lambda: self._qr_sync,
+            is_admin=self._is_admin,
+            group_id_of=self._group_id,
+            user_key_of=self._user_key,
+            message=lambda event, text: MessageEventResult().message(text),
+        )
 
         # 管理员 ID
         self.admin_ids: list[str] = []
@@ -106,8 +145,8 @@ class MaiChuPlugin(Star):
     async def initialize(self) -> None:
         """异步初始化：配置 API、加载数据。"""
         token = self.config.get("mai_divingfish_token", "")
-        proxy = bool(self.config.get("http_proxy", ""))
-        self.api.configure(token=token, proxy=proxy)
+        use_yuzuchan_proxy = bool(self.config.get("use_yuzuchan_proxy", False))
+        self.api.configure(token=token, use_proxy=use_yuzuchan_proxy)
 
         # Lxns
         lxns_key = self.config.get("lxns_dev_key", "")
@@ -119,11 +158,13 @@ class MaiChuPlugin(Star):
 
         try:
             await self.music_data.load_all()
+            self.music_data_ready = True
         except Exception as e:
             logger.error(f"加载歌曲数据失败: {e}")
 
         try:
             await self.chu_data.load_all()
+            self.chu_data_ready = True
         except Exception as e:
             logger.error(f"加载 CHUNITHM 数据失败: {e}")
 
@@ -134,9 +175,16 @@ class MaiChuPlugin(Star):
         # 初始化二维码同步服务
         try:
             from .qr_sync import QRSyncService
-            proxy = self.config.get("http_proxy", "")
-            df_dev_token = self.config.get("mai_divingfish_token", "")
-            self._qr_sync = QRSyncService(timeout=self.timeout, proxy=proxy, df_dev_token=df_dev_token)
+            proxy = self.http_proxy
+            # maimai-py 1.6.0：DivingFish 改为账号 OAuth（旧式开发者 Token 参数已移除）
+            df_client_id = self.config.get("divingfish_client_id", "")
+            df_client_secret = self.config.get("divingfish_client_secret", "")
+            self._qr_sync = QRSyncService(
+                timeout=self.timeout,
+                proxy=proxy,
+                df_client_id=df_client_id,
+                df_client_secret=df_client_secret,
+            )
             logger.info("QR 同步服务已初始化（maimai-py）")
         except Exception as e:
             logger.warning(f"QR 同步服务初始化失败（maimai-py 未安装？）: {e}")
@@ -163,7 +211,9 @@ class MaiChuPlugin(Star):
                     new_token, new_refresh = await self.lxns.oauth_refresh(
                         refresh_token, client_id, client_secret
                     )
-                    await self.user_store.set_lxns_token(user_key, new_token, new_refresh)
+                    await self.user_store.set_lxns_token(
+                        user_key, new_token, new_refresh, expires_at=time.time() + 15 * 60
+                    )
                     token = new_token
                     logger.debug(f"落雪 token 已刷新 ({user_key})")
                 except Exception as e:
@@ -181,7 +231,7 @@ class MaiChuPlugin(Star):
                 else:
                     logger.debug(f"落雪 token 验证跳过（非认证错误）({user_key}): {e}")
         if expired:
-            self._expired_tokens = set(expired)
+            self.account._expired_tokens = set(expired)
             logger.warning(f"落雪 token 失效 {len(expired)} 个，已自动清除")
         else:
             logger.info("所有落雪 token 验证通过")
@@ -202,6 +252,63 @@ class MaiChuPlugin(Star):
     @staticmethod
     def _user_key(event: AstrMessageEvent) -> str:
         return f"{event.get_platform_name()}:{event.get_sender_id()}"
+
+    def _get_qq(self, event: AstrMessageEvent) -> int | None:
+        """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
+        # 1. 尝试从 @提及 获取
+        try:
+            from astrbot.api.message_components import At
+            for comp in event.get_messages():
+                if isinstance(comp, At):
+                    return int(comp.qq)
+        except Exception:
+            pass
+        # 2. 从绑定记录获取
+        user_key = self._user_key(event)
+        qq = self.user_store.get_qq(user_key)
+        if qq and qq.isdigit():
+            return int(qq)
+        return None
+
+    def _get_df_token(self, event: AstrMessageEvent) -> str:
+        """取水鱼 Import-Token（用于水鱼公开查分接口的 token 查询）。"""
+        try:
+            return self.user_store.get_divingfish_token(self._user_key(event)) or ""
+        except Exception:
+            return ""
+
+    async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
+        """获取用户的有效落雪 token：过期时才刷新，不无条件刷新。"""
+        user_key = self._user_key(event)
+        token = self.user_store.get_lxns_token(user_key)
+        if not token:
+            return ""
+
+        # access_token 有效期内直接复用（提前 60s 预留缓冲），不刷新
+        expires_at = self.user_store.get_lxns_expires_at(user_key)
+        if expires_at and time.time() < expires_at - 60:
+            return token
+
+        # 过期/未知时用 refresh_token 换新 token
+        refresh_token = self.user_store.get_lxns_refresh_token(user_key)
+        if refresh_token:
+            client_id = self.config.get("lxns_client_id", "")
+            client_secret = self.config.get("lxns_client_secret", "")
+            if client_id and client_secret:
+                try:
+                    new_token, new_refresh = await self.lxns.oauth_refresh(
+                        refresh_token, client_id, client_secret
+                    )
+                    # Lxns access_token 有效期为 15 分钟
+                    new_expires = time.time() + 15 * 60
+                    await self.user_store.set_lxns_token(
+                        user_key, new_token, new_refresh, expires_at=new_expires
+                    )
+                    return new_token
+                except Exception as e:
+                    logger.debug(f"OAuth token 刷新失败，使用现有 token: {e}")
+
+        return token
 
     @staticmethod
     def _table_name(game: str) -> str:
@@ -251,381 +358,57 @@ class MaiChuPlugin(Star):
         return "maimai"
 
     # ================================================================
-    # 游戏切换
-    # ================================================================
-
-    # 舞萌/中二 → 内部 key
-    _GAME_ALIASES = {"舞萌": "maimai", "maimai": "maimai", "中二": "chunithm", "chunithm": "chunithm"}
-
     @command("更改游戏", alias={"game", "切换游戏"})
     async def _switch_game(self, event: AstrMessageEvent):
-        """切换查询游戏。用法：更改游戏 舞萌/中二"""
-        args = event.get_message_str().strip().split()
-
-        if len(args) < 2:
-            yield self._message("用法：更改游戏 舞萌/中二")
-            return
-
-        sub = args[1].lower()
-
-        # 群默认（管理员）
-        if sub in ("group", "群"):
-            if not self._is_admin(event):
-                yield self._message("需要管理员权限。")
-                return
-            if len(args) < 3:
-                yield self._message("用法: 更改游戏 群 舞萌/中二")
-                return
-            game = self._GAME_ALIASES.get(args[2].lower())
-            if not game:
-                yield self._message(f"无效游戏。可选: 舞萌、中二")
-                return
-            gid = self._group_id(event)
-            if not gid:
-                yield self._message("此命令只能在群聊中使用。")
-                return
-            await self.group_store.set_group_game_mode(gid, game)
-            label = GAME_LABELS.get(game, game)
-            yield self._message(f"✅ 群默认查询游戏已设为 {label}。")
-            return
-
-        # 个人设置
-        game = self._GAME_ALIASES.get(sub)
-        if not game:
-            yield self._message(f"无效游戏。可选: 舞萌、中二")
-            return
-        user_key = self._user_key(event)
-        await self.user_store.set_game_mode(user_key, game)
-        label = GAME_LABELS.get(game, game)
-        yield self._message(f"✅ 个人查询游戏已设为 {label}。")
-
-    # ================================================================
-    # 查分器切换
-    # ================================================================
+        async for r in self.admin.switch_game(event):
+            yield r
 
     @command("switchprober", alias={"切换查分器", "更改查分器"})
     async def _switch_prober(self, event: AstrMessageEvent):
-        """切换舞萌查分器。用法：更改查分器 水鱼/落雪"""
-        full_text = event.get_message_str().strip()
-        args = full_text.split(maxsplit=1)
-        param = args[1].strip() if len(args) > 1 else ""
-
-        prober_input = None
-        for t in [full_text, param]:
-            m = re.match(r"^(?:切换|更改)?(?:舞萌)?(?:查分器)?\s*(水鱼|落雪|divingfish|lxns)$", t, re.I)
-            if m:
-                prober_input = m.group(1).lower()
-                break
-
-        if not prober_input:
-            yield self._message("用法：更改查分器 水鱼/落雪")
-            return
-
-        prober_map = {"水鱼": "divingfish", "落雪": "lxns", "divingfish": "divingfish", "lxns": "lxns"}
-        prober = prober_map.get(prober_input)
-        if not prober:
-            yield self._message("无效查分器。可选：水鱼、落雪")
-            return
-
-        group_id = self._group_id(event)
-        if not group_id:
-            yield self._message("此命令只能在群聊中使用。")
-            return
-
-        await self.group_store.set_prober("maimai", prober, group_id)
-        prober_label = "水鱼" if prober == "divingfish" else "落雪"
-        yield self._message(f"✅ 舞萌查分器已切换为 {prober_label}。")
+        async for r in self.admin.switch_prober(event):
+            yield r
 
     def _get_prober(self, event: AstrMessageEvent, game: str) -> str:
-        """获取当前群指定游戏的查分器。"""
-        gid = self._group_id(event)
-        return self.group_store.get_prober(game, gid)
+        return self.admin.get_prober(event, game)
 
-    # ================================================================
     # 绑定 QQ
     # ================================================================
 
     @command("绑定QQ")
     async def _bind_qq(self, event: AstrMessageEvent):
-        args = event.get_message_str().strip().split()
-        if len(args) < 2 or not args[1].isdigit():
-            yield self._message("用法：绑定QQ <QQ号>\n绑定后查分命令将使用该 QQ 号查询。")
-            return
-        qq = args[1].strip()
-        user_key = self._user_key(event)
-        await self.user_store.set_qq(user_key, qq)
-        yield self._message(f"✅ 已绑定 QQ: {qq}")
+        async for r in self.account.bind_qq(event):
+            yield r
+
+    @command("unbindqq", alias={"解绑QQ", "解绑QQ号"})
+    async def _unbind_qq(self, event: AstrMessageEvent):
+        async for r in self.account.unbind_qq(event):
+            yield r
 
     @command("bindlxns", alias={"绑定落雪"})
     async def _bind_lxns(self, event: AstrMessageEvent):
-        """落雪 OAuth 绑定 — 生成链接，等待用户发送密钥。"""
-        client_id = self.config.get("lxns_client_id", "")
-        client_secret = self.config.get("lxns_client_secret", "")
-
-        if not client_id or not client_secret:
-            yield self._message(
-                "⚠️ 管理员未配置落雪 OAuth 应用。\n"
-                "请在插件配置中填写 `lxns_client_id` 和 `lxns_client_secret`。"
-            )
-            return
-
-        redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-        oauth_url = (
-            f"https://maimai.lxns.net/oauth/authorize"
-            f"?response_type=code"
-            f"&client_id={client_id}"
-            f"&redirect_uri={redirect_uri}"
-            f"&scope=read_user_profile+read_player+write_player"
-        )
-
-        user_key = self._user_key(event)
-        self._pending_oauth[user_key] = time.time() + 5 * 60
-
-        yield self._message(
-            f"🔗 请点击链接授权落雪查分器：\n{oauth_url}\n\n"
-            f"授权后页面会显示一串密钥，请在 **5 分钟内** 直接发送到聊天窗口即可。"
-        )
-
-        # 5 分钟超时提醒
-        async def _timeout():
-            await asyncio.sleep(5 * 60)
-            if self._pending_oauth.pop(user_key, None):
-                try:
-                    result = event.make_result().message("⏰ 落雪绑定超时，请重新发送 `绑定落雪` 获取新链接。")
-                    await event.send(result)
-                except Exception:
-                    pass
-        asyncio.create_task(_timeout())
-
-    async def _try_oauth_code(self, event: AstrMessageEvent):
-        """检测用户是否在等待发送 OAuth 密钥。如果是，尝试交换。"""
-        user_key = self._user_key(event)
-        expire = self._pending_oauth.get(user_key)
-        if not expire:
-            return
-        if time.time() > expire:
-            del self._pending_oauth[user_key]
-            return
-
-        text = event.get_message_str().strip()
-        # 密钥格式：通常 30 位左右的字母数字
-        if len(text) < 10 or len(text) > 60 or " " in text:
-            return
-
-        client_id = self.config.get("lxns_client_id", "")
-        client_secret = self.config.get("lxns_client_secret", "")
-        redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-        logger.info(f"[oauth] 用户 {user_key} 尝试交换 code")
-
-        try:
-            access_token, refresh_token = await self.lxns.oauth_exchange(text, client_id, client_secret, redirect_uri)
-        except Exception as e:
-            logger.debug(f"OAuth 交换尝试失败（非密钥消息）: {e}")
-            return
-
-        del self._pending_oauth[user_key]
-        self._expired_tokens.discard(user_key)
-        await self.user_store.set_lxns_token(user_key, access_token, refresh_token)
-
-        # 自动切换舞萌查分器为落雪
-        gid = self._group_id(event)
-        if gid:
-            await self.group_store.set_prober("maimai", "lxns", gid)
-
-        yield self._message(
-            "✅ 落雪查分器绑定成功！已自动切换舞萌查分器为落雪。\n"
-            "如需使用水鱼查分器，请发送：更改查分器 水鱼"
-        )
+        async for r in self.account.bind_lxns(event):
+            yield r
 
     @command("unbindlxns", alias={"解绑落雪"})
     async def _unbind_lxns(self, event: AstrMessageEvent):
-        """解绑落雪查分器。"""
-        user_key = self._user_key(event)
-        token = self.user_store.get_lxns_token(user_key)
-        if not token:
-            yield self._message("你还没有绑定落雪查分器。")
-            return
-        await self.user_store.remove_lxns_token(user_key)
-        yield self._message("✅ 已解绑落雪查分器。")
+        async for r in self.account.unbind_lxns(event):
+            yield r
 
     @command("binddf", alias={"绑定水鱼"})
     async def _bind_divingfish(self, event: AstrMessageEvent):
-        """绑定水鱼 Import-Token。"""
-        args = event.get_message_str().strip().split(maxsplit=1)
-
-        # 绑定水鱼 <token> — 直接绑定
-        if len(args) >= 2:
-            token = args[1].strip()
-            if len(token) < 50:
-                yield self._message("Token 格式不正确，请检查后重试。")
-                return
-            user_key = self._user_key(event)
-            async for r in self._df_bind_and_switch(event, user_key, token):
-                yield r
-            return
-
-        # 绑定水鱼（无参数）— 引导获取 Token，监听 5 分钟
-        user_key = self._user_key(event)
-        self._pending_df[user_key] = time.time() + 5 * 60
-        yield self._message(
-            "🔗 请前往水鱼查分器获取 Import-Token：\n"
-            "https://maimai.diving-fish.com/\n\n"
-            "1. 登录查分器\n"
-            "2. 点击右上角「编辑个人资料」\n"
-            "3. 复制「成绩导入 Token」\n"
-            "4. 在 **5 分钟内** 直接发送到聊天窗口即可"
-        )
-
-        async def _timeout():
-            await asyncio.sleep(5 * 60)
-            if self._pending_df.pop(user_key, None):
-                try:
-                    result = event.make_result().message("⏰ 水鱼绑定超时，请重新发送「绑定水鱼」。")
-                    await event.send(result)
-                except Exception:
-                    pass
-        asyncio.create_task(_timeout())
-
-    async def _try_df_token(self, event: AstrMessageEvent) -> bool:
-        """检测用户是否在等待发送水鱼 Token。"""
-        user_key = self._user_key(event)
-        expire = self._pending_df.get(user_key)
-        if not expire or time.time() > expire:
-            self._pending_df.pop(user_key, None)
-            return False
-
-        text = event.get_message_str().strip()
-        # QQ Official 消息中 @bot 会混入文本，去掉 @mention 部分
-        text = re.sub(r"@\S+\s*", "", text).strip()
-        if len(text) < 50 or len(text) > 300 or " " in text:
-            return False
-
-        del self._pending_df[user_key]
-        await self.user_store.set_divingfish_token(user_key, text)
-        gid = self._group_id(event)
-        if gid:
-            await self.group_store.set_prober("maimai", "divingfish", gid)
-        self._pending_df_message = (
-            "✅ 水鱼查分器绑定成功！已自动切换舞萌查分器为水鱼。\n"
-            "如需使用落雪查分器，请发送：更改查分器 落雪"
-        )
-        return True
-
-    async def _df_bind_and_switch(self, event: AstrMessageEvent, user_key: str, token: str) -> None:
-        """绑定水鱼 Token 并自动切换查分器。"""
-        await self.user_store.set_divingfish_token(user_key, token)
-        gid = self._group_id(event)
-        if gid:
-            await self.group_store.set_prober("maimai", "divingfish", gid)
-        yield self._message(
-            "✅ 水鱼查分器绑定成功！已自动切换舞萌查分器为水鱼。\n"
-            "如需使用落雪查分器，请发送：更改查分器 落雪"
-        )
+        async for r in self.account.bind_divingfish(event):
+            yield r
 
     @command("unbinddf", alias={"解绑水鱼"})
     async def _unbind_divingfish(self, event: AstrMessageEvent):
-        """解绑水鱼 Import-Token。"""
-        user_key = self._user_key(event)
-        token = self.user_store.get_divingfish_token(user_key)
-        if not token:
-            yield self._message("你还没有绑定水鱼查分器。")
-            return
-        await self.user_store.remove_divingfish_token(user_key)
-        yield self._message("✅ 已解绑水鱼查分器。")
+        async for r in self.account.unbind_divingfish(event):
+            yield r
 
     @command("account", alias={"绑定账号", "账号状态", "我的绑定"})
     async def _account_status(self, event: AstrMessageEvent):
-        """查看当前账号绑定状态。"""
-        user_key = self._user_key(event)
+        async for r in self.account.account_status(event):
+            yield r
 
-        # QQ 绑定
-        qq = self.user_store.get_qq(user_key)
-        qq_status = f"✅ {qq}" if qq else "❌ 未绑定"
-
-        # 落雪 OAuth
-        lxns_token = self.user_store.get_lxns_token(user_key)
-        token_expired = user_key in self._expired_tokens
-        if lxns_token:
-            lxns_status = "✅ 已授权"
-        elif token_expired:
-            lxns_status = "⚠️ 已失效"
-        else:
-            lxns_status = "❌ 未绑定"
-
-        # 水鱼（DivingFish）
-        df_token = self.user_store.get_divingfish_token(user_key)
-        divingfish_status = "✅ 已绑定" if df_token else "❌ 未绑定"
-
-        lines = [
-            "📋 **账号绑定状态**\n",
-            f"| 项目 | 状态 |",
-            f"|------|------|",
-            f"| QQ 号 | {qq_status} |",
-            f"| 落雪查分器 | {lxns_status} |",
-            f"| 水鱼查分器 | {divingfish_status} |",
-            "",
-        ]
-
-        if token_expired:
-            lines.append("⚠️ **落雪授权已失效**，请重新绑定。")
-            lines.append("")
-
-        lines.extend([
-            "---",
-            "**绑定指引：**",
-            "• `绑定QQ <QQ号>` — 绑定 QQ",
-            "• `绑定落雪` — 授权落雪查分器（推荐）",
-            "• `绑定水鱼` — 获取水鱼 Import-Token",
-            "• `解绑落雪` / `解绑水鱼` — 取消授权",
-        ])
-        if not qq and not lxns_token:
-            lines.append("")
-            lines.append("⚠️ 你还没有绑定任何查分方式，请先绑定 QQ 或落雪。")
-
-        yield self._message("\n".join(lines))
-
-    def _get_qq(self, event: AstrMessageEvent) -> int | None:
-        """获取用户的 QQ 号：优先从 @提及 获取，其次从绑定记录获取。"""
-        # 1. 尝试从 @提及 获取
-        try:
-            from astrbot.api.message_components import At
-            for comp in event.get_messages():
-                if isinstance(comp, At):
-                    return int(comp.qq)
-        except Exception:
-            pass
-        # 2. 从绑定记录获取
-        user_key = self._user_key(event)
-        qq = self.user_store.get_qq(user_key)
-        if qq and qq.isdigit():
-            return int(qq)
-        return None
-
-    async def _get_lxns_token(self, event: AstrMessageEvent) -> str:
-        """获取用户的有效落雪 token：OAuth 绑定 + 自动刷新。"""
-        user_key = self._user_key(event)
-        token = self.user_store.get_lxns_token(user_key)
-        if not token:
-            return ""
-
-        # 尝试刷新：用 refresh_token 换新的 access_token
-        refresh_token = self.user_store.get_lxns_refresh_token(user_key)
-        if refresh_token:
-            client_id = self.config.get("lxns_client_id", "")
-            client_secret = self.config.get("lxns_client_secret", "")
-            if client_id and client_secret:
-                try:
-                    new_token, new_refresh = await self.lxns.oauth_refresh(
-                        refresh_token, client_id, client_secret
-                    )
-                    await self.user_store.set_lxns_token(user_key, new_token, new_refresh)
-                    return new_token
-                except Exception as e:
-                    logger.debug(f"OAuth token 刷新失败，使用现有 token: {e}")
-
-        return token
-
-    # ================================================================
     # 帮助
     # ================================================================
 
@@ -646,104 +429,34 @@ class MaiChuPlugin(Star):
         async for r in admin_help_handler(event):
             yield r
 
-    # ================================================================
-    # 群功能开关
-    # ================================================================
+    @command("插件状态")
+    async def _plugin_status(self, event: AstrMessageEvent):
+        async for r in self.admin.plugin_status(event):
+            yield r
 
     @command("gametoggle", alias={"开启功能", "关闭功能", "maitoggle"})
     async def _toggle_maimai(self, event: AstrMessageEvent):
-        if not self._is_admin(event):
-            yield self._message("需要管理员权限。")
-            return
-        text = event.get_message_str().strip()
-        enable = "开启" in text
-        group_id = self._group_id(event)
-        if not group_id:
-            yield self._message("此命令只能在群聊中使用。")
-            return
-        await self.group_store.toggle_group(group_id, enable)
-        status = "开启" if enable else "关闭"
-        yield self._message(f"✅ 群功能已{status}。")
-
-    # ================================================================
-    # 别名数据源切换
-    # ================================================================
+        async for r in self.admin.toggle_maimai(event):
+            yield r
 
     @command("switchalias", alias={"更改别名源", "切换别名源"})
     async def _switch_alias_source(self, event: AstrMessageEvent):
-        if not self._is_admin(event):
-            yield self._message("需要管理员权限。")
-            return
-        text = event.get_message_str().strip()
-        # 解析: 更改别名源 舞萌/中二 水鱼/落雪
-        m = re.search(r"(舞萌|maimai|中二|chunithm)\s*(水鱼|yuzuchan|落雪|lxns)", text, re.IGNORECASE)
-        if not m:
-            yield self._message(
-                "用法：更改别名源 <游戏> <数据源>\n"
-                "游戏：舞萌 / 中二\n"
-                "数据源：水鱼 / 落雪\n"
-                "例如：更改别名源 舞萌 落雪"
-            )
-            return
-
-        game_raw = m.group(1).lower()
-        source_raw = m.group(2).lower()
-
-        game = "maimai" if game_raw in ("舞萌", "maimai") else "chunithm"
-        source = "lxns" if source_raw in ("落雪", "lxns") else "yuzuchan"
-
-        if game == "chunithm" and source == "yuzuchan":
-            yield self._message("中二节奏暂不支持柚子别名源，请使用落雪。")
-            return
-
-        # 保存配置
-        key = "mai_alias_source" if game == "maimai" else "chu_alias_source"
-        self.config[key] = source
-        try:
-            self.context.save_config()
-        except Exception:
-            pass
-
-        # 重新加载别名
-        label = "舞萌" if game == "maimai" else "中二"
-        src_label = "落雪" if source == "lxns" else "柚子"
-        yield self._message(f"🔄 正在从{src_label}重新加载{label}别名数据...")
-
-        if game == "maimai":
-            self.music_data.configure_alias(source=source, lxns=self.lxns)
-            try:
-                await self.music_data.load_alias_data()
-                yield self._message(f"✅ {label}别名源已切换为 {src_label}，共 {len(self.music_data.alias_list)} 条。")
-            except Exception as e:
-                yield self._message(f"❌ 加载别名失败：{e}")
-        else:
-            try:
-                await self.chu_data.load_aliases()
-                yield self._message(f"✅ {label}别名源已切换为 {src_label}，共 {len(self.chu_data.aliases)} 条。")
-            except Exception as e:
-                yield self._message(f"❌ 加载别名失败：{e}")
-
-    # ================================================================
-    # 更新数据
-    # ================================================================
+        async for r in self.admin.switch_alias_source(event):
+            yield r
 
     @command("maiupdate", alias={"更新maimai数据"})
     async def _update_data(self, event: AstrMessageEvent):
-        if not self._is_admin(event):
-            yield self._message("需要管理员权限。")
-            return
-        try:
-            await self.music_data.load_all()
-            yield self._message(
-                f"✅ 数据已更新：{len(self.music_data.music_list)} 首歌曲，"
-                f"{len(self.music_data.alias_list)} 条别名"
-            )
-        except Exception as e:
-            yield self._message(f"更新失败：{e}")
+        async for r in self.admin.update_data(event):
+            yield r
 
-    # ================================================================
     # 统一查分路由
     # ================================================================
+
+    def _music_ready(self) -> bool:
+        return self.music_data_ready and len(self.music_data.music_list) > 0
+
+    def _chu_ready(self) -> bool:
+        return self.chu_data_ready and len(self.chu_data.songs) > 0
 
     async def _route_b50(self, event: AstrMessageEvent, game: str) -> None:
         """统一 B50/B30 路由。"""
@@ -752,10 +465,20 @@ class MaiChuPlugin(Star):
         if user_token:
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
+        df_token = self._get_df_token(event)
         prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
-        logger.info(f"[B50] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
-        if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
+        logger.info(
+            f"[B50] game={game}, prober={prober}, qq={qq}, "
+            f"has_lxns_token={bool(user_token)}, has_df_token={bool(df_token)}"
+        )
+        if qq is None and not user_token and not df_token:
+            yield self._message(self._BIND_HINT)
+            return
+        if game == "chunithm" and not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪，请稍后重试或让管理员更新数据。")
+            return
+        if game == "maimai" and not self._music_ready():
+            yield self._message("⚠️ maimai 曲库未就绪，请稍后重试或让管理员更新数据。")
             return
         try:
             if game == "chunithm":
@@ -765,7 +488,7 @@ class MaiChuPlugin(Star):
                 async for r in lxns_mai_b50_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
-                async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq):
+                async for r in mai_b50_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                     yield r
         finally:
             self.lxns._user_token = saved_token
@@ -777,10 +500,20 @@ class MaiChuPlugin(Star):
         if user_token:
             self.lxns._user_token = user_token
         qq = self._get_qq(event)
+        df_token = self._get_df_token(event)
         prober = self._get_prober(event, "maimai") if game == "maimai" else "lxns"
-        logger.info(f"[minfo] game={game}, prober={prober}, qq={qq}, has_token={bool(user_token)}")
-        if qq is None and not user_token:
-            yield self._message("⚠️ 未绑定 QQ 号，请先执行 `绑定QQ <你的QQ号>` 或 `绑定落雪` 绑定。")
+        logger.info(
+            f"[minfo] game={game}, prober={prober}, qq={qq}, "
+            f"has_lxns_token={bool(user_token)}, has_df_token={bool(df_token)}"
+        )
+        if qq is None and not user_token and not df_token:
+            yield self._message(self._BIND_HINT)
+            return
+        if game == "chunithm" and not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪，请稍后重试或让管理员更新数据。")
+            return
+        if game == "maimai" and not self._music_ready():
+            yield self._message("⚠️ maimai 曲库未就绪，请稍后重试或让管理员更新数据。")
             return
         try:
             if game == "chunithm":
@@ -790,7 +523,7 @@ class MaiChuPlugin(Star):
                 async for r in lxns_mai_minfo_handler(event, self.lxns, qq=qq, music_data=self.music_data):
                     yield r
             else:
-                async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq):
+                async for r in mai_minfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                     yield r
         finally:
             self.lxns._user_token = saved_token
@@ -818,7 +551,11 @@ class MaiChuPlugin(Star):
         if self._is_group_disabled(event):
             return
         qq = self._get_qq(event)
-        async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq):
+        df_token = self._get_df_token(event)
+        if qq is None and not df_token:
+            yield self._message(self._BIND_HINT)
+            return
+        async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
             yield r
 
     @command("mailine")
@@ -850,12 +587,18 @@ class MaiChuPlugin(Star):
     async def _chu_search(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
             return
+        if not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪。")
+            return
         async for r in chu_search_handler(event, self.chu_data):
             yield r
 
     @command("chuid")
     async def _chu_id(self, event: AstrMessageEvent):
         if self._is_group_disabled(event):
+            return
+        if not self._chu_ready():
+            yield self._message("⚠️ CHUNITHM 曲库未就绪。")
             return
         async for r in chu_id_handler(event, self.chu_data):
             yield r
@@ -889,7 +632,11 @@ class MaiChuPlugin(Star):
             yield self._message("CHUNITHM 暂不支持 ginfo。")
         else:
             qq = self._get_qq(event)
-            async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq):
+            df_token = self._get_df_token(event)
+            if qq is None and not df_token:
+                yield self._message(self._BIND_HINT)
+                return
+            async for r in mai_ginfo_handler(event, self.api, self.music_data, qq=qq, token=df_token):
                 yield r
 
     @command("分数线")
@@ -909,9 +656,15 @@ class MaiChuPlugin(Star):
             return
         game = self._resolve_game(event)
         if game == "chunithm":
+            if not self._chu_ready():
+                yield self._message("⚠️ CHUNITHM 曲库未就绪。")
+                return
             async for r in chu_search_handler(event, self.chu_data):
                 yield r
         else:
+            if not self._music_ready():
+                yield self._message("⚠️ maimai 曲库未就绪。")
+                return
             async for r in mai_search_music_handler(event, self.music_data):
                 yield r
 
@@ -921,9 +674,15 @@ class MaiChuPlugin(Star):
             return
         game = self._resolve_game(event)
         if game == "chunithm":
+            if not self._chu_ready():
+                yield self._message("⚠️ CHUNITHM 曲库未就绪。")
+                return
             async for r in chu_id_handler(event, self.chu_data):
                 yield r
         else:
+            if not self._music_ready():
+                yield self._message("⚠️ maimai 曲库未就绪。")
+                return
             async for r in mai_query_by_id_handler(event, self.music_data):
                 yield r
 
@@ -1057,7 +816,11 @@ class MaiChuPlugin(Star):
         prober = self._get_prober(event, "maimai")
         lxns_token = await self._get_lxns_token(event)
         qq = self._get_qq(event)
-        async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq):
+        df_token = self._get_df_token(event)
+        if qq is None and not lxns_token and not df_token:
+            yield self._message(self._BIND_HINT)
+            return
+        async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq, token=df_token):
             yield r
 
     # ================================================================
@@ -1134,104 +897,20 @@ class MaiChuPlugin(Star):
 
     @command("syncdata", alias={"同步数据"})
     async def _sync_data(self, event: AstrMessageEvent):
-        """同步街机数据到查分器。用法：同步数据 水鱼/落雪"""
-        args = event.get_message_str().strip().split(maxsplit=1)
-        target = args[1].strip().lower() if len(args) > 1 else ""
+        async for r in self.sync.start(event):
+            yield r
 
-        user_key = self._user_key(event)
-        lxns_token = await self._get_lxns_token(event)
-        df_token = self.user_store.get_divingfish_token(user_key)
+    async def _try_sync_sgid(self, event: AstrMessageEvent, sgid: str = ""):
+        async for r in self.sync.try_sync_sgid(event, sgid):
+            yield r
 
-        if target in ("水鱼", "divingfish", "df"):
-            if not df_token:
-                yield self._message("⚠️ 未绑定水鱼查分器，请先发送「绑定水鱼 <Token>」。")
-                return
-            prober = "divingfish"
-            label = "水鱼"
-        elif target in ("落雪", "lxns"):
-            if not lxns_token:
-                yield self._message("⚠️ 未绑定落雪查分器，请先发送「绑定落雪」。")
-                return
-            prober = "lxns"
-            label = "落雪"
-        else:
-            yield self._message("用法：同步数据 水鱼/落雪")
-            return
-
-        self._pending_sync[user_key] = (prober, time.time() + 3 * 60)
-        yield self._message(
-            f"🔗 请在 **3 分钟内** 发送街机二维码（SGWCMAID...），将同步到{label}查分器。"
-        )
-
-        # 3 分钟超时提醒
-        async def _timeout():
-            await asyncio.sleep(3 * 60)
-            if self._pending_sync.pop(user_key, None):
-                try:
-                    result = event.make_result().message("⏰ 同步超时，请重新发送「同步数据 水鱼/落雪」。")
-                    await event.send(result)
-                except Exception:
-                    pass
-        asyncio.create_task(_timeout())
-
-    async def _try_sync_sgid(self, event: AstrMessageEvent, sgid: str):
-        """等待中的同步：收到 SGID 后执行同步。"""
-        from .qr_sync import extract_sgid, is_valid_sgid
-
-        if not sgid:
-            sgid = extract_sgid(event.get_message_str()) or ""
-        if not sgid:
-            return
-
-        user_key = self._user_key(event)
-        pending = self._pending_sync.get(user_key)
-        if not pending or time.time() > pending[1]:
-            self._pending_sync.pop(user_key, None)
-            return
-
-        # 只验证格式，不检查 SGID 新鲜度（可能在二维码上停留了几分钟）
-        if not is_valid_sgid(sgid):
-            logger.warning(f"[sync] SGID 格式无效: {sgid[:20]}...")
-            return
-
-        prober = pending[0]
-        del self._pending_sync[user_key]
-
-        lxns_token = await self._get_lxns_token(event)
-        df_token = self.user_store.get_divingfish_token(user_key)
-        label = "水鱼" if prober == "divingfish" else "落雪"
-        logger.info(f"[sync] 开始同步: prober={prober}, user={user_key}")
-
-        yield self._message(f"🎮 正在同步成绩到{label}，请稍候...")
-
-        try:
-            if prober == "lxns":
-                result = await self._qr_sync.sync_to_lxns(sgid, lxns_token)
-            else:
-                result = await self._qr_sync.sync_to_divingfish(sgid, df_token)
-
-            lines = [
-                f"✅ 同步成功！",
-                f"  玩家: {result.player_name}" if result.player_name else "",
-                f"  Rating: {result.rating}",
-                f"  同步曲数: {result.score_count}",
-            ]
-            if result.warning:
-                lines.append(f"  ⚠️ {result.warning}")
-            yield self._message("\n".join(lines))
-
-        except Exception as e:
-            err_msg = self._qr_sync.describe_error(e)
-            logger.exception("同步数据失败")
-            yield self._message(f"❌ {err_msg}")
-
-    # ================================================================
     # 正则匹配（不需要唤醒前缀）
     # ================================================================
 
     @event_message_type(EventMessageType.ALL)
+    @event_message_type(EventMessageType.ALL)
     async def _on_message(self, event: AstrMessageEvent):
-        """全局消息处理：猜歌答案、别名查歌、分数计算、运势等。"""
+        """全局消息处理：pending 监听 + 自然语言路由。"""
         if self._is_group_disabled(event):
             return
         # 跳过机器人自身消息（避免 bot 回复触发监听）
@@ -1241,193 +920,30 @@ class MaiChuPlugin(Star):
         except AttributeError:
             pass
 
-        # OAuth 密钥监听（15 分钟内直接发送密钥）
-        if self._pending_oauth.get(self._user_key(event)):
-            async for r in self._try_oauth_code(event):
+        # OAuth 密钥监听（5 分钟内直接发送密钥）
+        if self.account._pending_oauth.get(self._user_key(event)):
+            async for r in self.account.try_oauth_code(event):
                 yield r
             return
 
         # 水鱼 Token 监听（5 分钟内直接发送 Token）
-        if self._pending_df.get(self._user_key(event)):
-            if await self._try_df_token(event):
-                msg = getattr(self, '_pending_df_message', None)
+        if self.account._pending_df.get(self._user_key(event)):
+            if await self.account.try_df_token(event):
+                msg = self.account._pending_df_message
                 if msg:
                     yield self._message(msg)
-                    self._pending_df_message = None
+                    self.account._pending_df_message = None
                 return
-
-        text = event.get_message_str().strip()
 
         # 同步数据等待中的 SGWCMAID 检测
-        if self._qr_sync and self._pending_sync.get(self._user_key(event)) and "SGWCMAID" in text.upper():
+        if self.sync.qr_sync and self.sync.has_pending(self._user_key(event)) and "SGWCMAID" in event.get_message_str().strip().upper():
             from .qr_sync import extract_sgid
-            sgid = extract_sgid(text)
+            sgid = extract_sgid(event.get_message_str().strip())
             if sgid:
-                async for r in self._try_sync_sgid(event, sgid):
+                async for r in self.sync.try_sync_sgid(event, sgid):
                     yield r
                 return
 
-        game = self._resolve_game(event)
-
-        # --- 以下仅 maimai 模式 ---
-
-        if game == "maimai":
-            # 猜歌答案
-            if is_group_message(event):
-                async for r in mai_guess_solve_handler(event, self.music_data):
-                    yield r
-                return
-
-            # 分数计算：X的Y是多少分
-            if re.match(r"^[\d.]+的[\d.]+是多少分$", text):
-                async for r in mai_score_calc_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # 今日运势
-            if re.match(r"^(今日mai|今日舞萌|今日运势)$", text):
-                async for r in self._daily_fortune(event):
-                    yield r
-                    return
-
-            # mai什么 / 随机歌曲
-            if re.match(r"^.*mai.*什么", text):
-                async for r in self._mai_what(event):
-                    yield r
-                    return
-
-            # 来/随/给个 + 难度
-            if re.match(r"^[来随给]个", text):
-                async for r in self._random_song(event):
-                    yield r
-                    return
-
-            # 分数线
-            if text.startswith("分数线"):
-                async for r in mai_score_line_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # X定数表
-            if re.match(r"^(?!更新).+?定数表$", text):
-                async for r in mai_rating_table_handler(event, self.music_data):
-                    yield r
-                    return
-
-            # 版牌进度 / 等级进度
-            if re.search(r"进度\s*$", text):
-                qq = self._get_qq(event)
-                async for r in mai_plate_progress_handler(event, self.api, self.music_data, qq=qq):
-                    yield r
-                return
-
-            # 推分
-            if re.match(r"^我要在", text):
-                prober = self._get_prober(event, "maimai")
-                lxns_token = await self._get_lxns_token(event)
-                qq = self._get_qq(event)
-                async for r in mai_rise_score_handler(event, self.api, self.music_data, prober=prober, lxns=self.lxns, lxns_token=lxns_token, qq=qq):
-                    yield r
-                return
-
-        # --- 共用：别名相关（按游戏路由） ---
-
-        if re.search(r"有什么别[名称]$", text):
-            if game == "chunithm":
-                async for r in chu_alias_query_handler(event, self.chu_data):
-                    yield r
-            else:
-                async for r in alias_query_handler(event, self.music_data):
-                    yield r
-            return
-
-        if re.search(r"(是什么歌|是啥歌)$", text):
-            if game == "chunithm":
-                async for r in chu_search_alias_handler(event, self.chu_data):
-                    yield r
-            else:
-                async for r in mai_search_alias_handler(event, self.music_data):
-                    yield r
-            return
-
-    # ================================================================
-    # 内置功能
-    # ================================================================
-
-    async def _daily_fortune(self, event: AstrMessageEvent):
-        """每日运势。"""
-        from .utils import qq_hash, now_cn, secure_choice
-
-        qq = event.get_sender_id()
-        today = now_cn().strftime("%Y%m%d")
-        seed = int(f"{qq_hash(qq)}{today}")
-        import random
-        rng = random.Random(seed)
-
-        music = (
-            secure_choice(list(self.music_data.music_list))
-            if self.music_data.music_list else None
-        )
-
-        fortunes = [
-            ("大吉", "今天打 mai 一定会有好成绩！"),
-            ("中吉", "稳扎稳打，今天适合刷分。"),
-            ("小吉", "小心手滑，注意节奏。"),
-            ("吉", "平平淡淡才是真。"),
-            ("末吉", "今天可能不太顺利，休息一下吧。"),
-        ]
-        fortune = rng.choice(fortunes)
-
-        lines = [f"🎱 今日运势 — {fortune[0]}", fortune[1]]
-        if music:
-            lines.append(f"🎵 今日推荐：{music.title}")
-
-        yield self._message("\n".join(lines))
-
-    async def _mai_what(self, event: AstrMessageEvent):
-        """mai什么 — 随机推荐。"""
-        from .utils import secure_choice
-
-        music = (
-            secure_choice(list(self.music_data.music_list))
-            if self.music_data.music_list else None
-        )
-        if not music:
-            yield self._message("曲库为空。")
-            return
-
-        levels = " / ".join(music.level)
-        yield self._message(
-            f"🎵 随机推荐：{music.title}\n"
-            f"  曲师: {music.basic_info.artist}\n"
-            f"  难度: {levels}\n"
-            f"  BPM: {music.basic_info.bpm}"
-        )
-
-    async def _random_song(self, event: AstrMessageEvent):
-        """来/随/给个 + 难度等级。"""
-        text = event.get_message_str().strip()
-        m = re.match(r"^[来随给]个(?:(dx|sd|标准))?([绿黄红紫白]?)([0-9]+\+?)$", text)
-        if not m:
-            return
-
-        type_filter = m.group(1)
-        diff_char = m.group(2)
-        level = m.group(3)
-
-        type_map = {"dx": "DX", "sd": "SD", "标准": "SD"}
-        music_type = type_map.get(type_filter) if type_filter else None
-
-        from .mai_data import DIFF_LABEL_TO_INDEX
-        diff_idx = DIFF_LABEL_TO_INDEX.get(diff_char)
-
-        music = self.music_data.random_music(level=level, diff=diff_idx, type=music_type)
-        if not music:
-            yield self._message("未找到符合条件的歌曲。")
-            return
-
-        levels = " / ".join(music.level)
-        yield self._message(
-            f"🎵 随机选歌：{music.title}\n"
-            f"  类型: {music.type} | 难度: {levels}"
-        )
+        # 其余自然语言路由下沉到 NlpService
+        async for r in self.nlp.handle(event):
+            yield r

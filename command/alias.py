@@ -223,27 +223,15 @@ async def alias_push_handler(
             return
 
         await group_store.toggle_alias_push(group_id, enable)
+        if enable:
+            # 记录群的 unified_msg_origin，供别名推送广播使用
+            session = getattr(event, "unified_msg_origin", "") or ""
+            if session:
+                await group_store.set_and_save_alias_push_session(group_id, session)
+        else:
+            await group_store.remove_alias_push_session(group_id)
         status = "开启" if enable else "关闭"
         yield event.plain_result(f"✅ 群别名推送已{status}。")
-
-    except Exception as e:
-        yield event.plain_result(f"操作失败：{e}")
-
-
-async def alias_global_push_handler(
-    event: AstrMessageEvent,
-    group_store,
-    **_: Any,
-):
-    """全局开启/关闭别名推送。"""
-    try:
-        text = event.get_message_str().strip()
-        m = re.match(r"^全局(开启|关闭)别名推送$", text)
-        if not m:
-            return
-
-        # 此功能需要 superadmin 权限
-        yield event.plain_result("全局别名推送开关已更新。")
 
     except Exception as e:
         yield event.plain_result(f"操作失败：{e}")
@@ -304,8 +292,31 @@ class AliasPushService:
             if hasattr(status.Status, "ApplyAlias"):
                 text += f" -> {status.Status.ApplyAlias}"
 
-            # 广播到所有已开启推送的群
-            # TODO: 遍历群列表并发送
-            logger.info(f"别名推送: {text}")
+            await self._broadcast(context, group_store, text)
         except Exception as e:
             logger.warning(f"处理别名推送消息失败: {e}")
+
+    async def _broadcast(self, context, group_store, text: str) -> None:
+        """广播别名推送文本到所有已开启推送的群。"""
+        sessions = group_store.get_all_alias_push_sessions()
+        if not sessions:
+            return
+
+        try:
+            from astrbot.api.message_components import Plain
+            from astrbot.core.message.message_event_result import MessageChain
+        except ImportError:
+            logger.warning("无法导入 AstrBot 消息组件，跳过广播")
+            return
+
+        for group_id, session in sessions.items():
+            if not group_store.is_alias_push_enabled(group_id):
+                continue
+            if not session:
+                continue
+            try:
+                chain = MessageChain(chain=[Plain(text)])
+                await context.send_message(session, chain)
+            except Exception as e:
+                # qq_official 等平台不支持主动发送；单群失败不影响其他群
+                logger.debug(f"别名推送广播到 {group_id} 失败: {e}")

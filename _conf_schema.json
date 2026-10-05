@@ -17,11 +17,29 @@
     "description": "DivingFish 查分器 Token",
     "hint": "在 diving-fish.com 个人设置中获取的 Developer Token"
   },
+  "divingfish_client_id": {
+    "type": "string",
+    "default": "",
+    "description": "DivingFish OAuth Client ID",
+    "hint": "maimai-py 1.6.0 起水鱼改用账号 OAuth；在 auth.diving-fish.com/console 登记应用获取。留空则二维码同步水鱼走 Import-Token 方式"
+  },
+  "divingfish_client_secret": {
+    "type": "string",
+    "default": "",
+    "description": "DivingFish OAuth Client Secret",
+    "hint": "同上，生成后只显示一次，请立即保存。留空则二维码同步水鱼走 Import-Token 方式"
+  },
   "http_proxy": {
     "type": "string",
     "default": "",
     "description": "HTTP 代理地址",
     "hint": "留空则不使用代理，格式如 http://127.0.0.1:7890"
+  },
+  "use_yuzuchan_proxy": {
+    "type": "bool",
+    "default": false,
+    "description": "使用柚子查分器反代",
+    "hint": "开启后查分/别名请求走 proxy.yuzuchan.site 反代；与 http_proxy（HTTP 代理）相互独立"
   },
   "enable_guess_game": {
     "type": "bool",
@@ -46,7 +64,11 @@
     "default": 30,
     "description": "请求超时时间（秒）",
     "hint": "HTTP 请求的超时时间",
-    "slider": {"min": 5, "max": 60, "step": 5}
+    "slider": {
+      "min": 5,
+      "max": 60,
+      "step": 5
+    }
   },
   "kook_token": {
     "type": "string",
@@ -59,14 +81,19 @@
     "default": "yuzuchan",
     "description": "舞萌别名数据源",
     "hint": "yuzuchan = 柚子查分器, lxns = 落雪咖啡屋",
-    "options": ["yuzuchan", "lxns"]
+    "options": [
+      "yuzuchan",
+      "lxns"
+    ]
   },
   "chu_alias_source": {
     "type": "string",
     "default": "lxns",
     "description": "中二别名数据源",
     "hint": "目前仅支持落雪",
-    "options": ["lxns"]
+    "options": [
+      "lxns"
+    ]
   },
   "lxns_dev_key": {
     "type": "string",

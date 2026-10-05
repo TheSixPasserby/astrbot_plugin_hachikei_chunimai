@@ -57,10 +57,10 @@ class MaimaiDependencyError(MaimaiError):
 
 # 异常 -> 用户友好中文消息 的映射
 _ERROR_MESSAGES: dict[type[MaimaiError], str] = {
-    UserNotFoundError: "未在查分器中找到该用户，请发送「绑定账号」查看绑定帮助。",
-    UserNotExistsError: "用户不存在。",
+    UserNotFoundError: "查分器里没有找到该用户。可发送 `绑定水鱼`、`绑定QQ <QQ号>` 或 `绑定账号` 查看绑定指引。",
+    UserNotExistsError: "查分器里没有这个用户。若你用的是自己的账号，请发送 `绑定水鱼` 或 `绑定QQ <QQ号>` 后重试。",
     UserDisabledQueryError: "该用户关闭了查询功能。",
-    TokenNotFoundError: "未找到 Token，请先使用 `maimaitoken` 绑定。",
+    TokenNotFoundError: "未找到 Token，请发送 `绑定水鱼` 获取 Import-Token。",
     TokenDisableError: "Token 已被禁用，请在查分器中重新启用。",
     TokenError: "Token 错误，请重新绑定。",
     ServerError: "查分器服务器错误，请稍后再试。",
