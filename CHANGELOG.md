@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.2 (2026-10-06)
+
+### 新增
+- **`解绑QQ` 命令**（alias：`解绑QQ号`）——此前只有 `解绑落雪` / `解绑水鱼`，
+  缺 QQ 解绑，且 `storage.UserStore` 也没有 `remove_qq`
+  - `storage.py`：新增 `remove_qq()`（带锁，记录为空时清理条目）
+  - `command/account.py`：`AccountService.unbind_qq()`，解绑后提示仍可用的其他查分器
+  - `main.py`：注册 `unbindqq` 命令
+  - 账号状态页绑定指引补上 `解绑QQ`
+
+### 修复
+- `command/account.py` 模块文档声称支持「绑定/解绑 QQ」，实际并无解绑 QQ 的实现
+
+### 新增
+- `tests/test_unbind_qq.py`：8 个用例
+
 ## v0.3.1 (2026-10-06)
 
 ### 新增

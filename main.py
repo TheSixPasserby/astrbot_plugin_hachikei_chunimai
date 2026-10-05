@@ -53,7 +53,7 @@ from .utils import is_group_message
     "astrbot_plugin_hachikei_chunimai",
     "TheSixPasserby",
     "maimai DX / CHUNITHM 综合助手：查分、搜歌、猜歌、牌桌、别名。",
-    "0.3.1",
+    "0.3.2",
     "",
 )
 class MaiChuPlugin(Star):
@@ -65,7 +65,7 @@ class MaiChuPlugin(Star):
         "• `绑定QQ <你的QQ号>` — 按 QQ 号查分（最简单）\n"
         "• `绑定水鱼` — 绑定水鱼 Import-Token，无需 QQ 即可查分\n"
         "• `绑定落雪` — 授权落雪查分器\n"
-        "发送 `绑定账号` 可随时查看当前绑定状态。"
+        "发送 `绑定账号` 可随时查看当前绑定状态与解绑命令。"
     )
 
     def __init__(self, context: Context, config: AstrBotConfig | dict) -> None:
@@ -365,6 +365,11 @@ class MaiChuPlugin(Star):
     @command("绑定QQ")
     async def _bind_qq(self, event: AstrMessageEvent):
         async for r in self.account.bind_qq(event):
+            yield r
+
+    @command("unbindqq", alias={"解绑QQ", "解绑QQ号"})
+    async def _unbind_qq(self, event: AstrMessageEvent):
+        async for r in self.account.unbind_qq(event):
             yield r
 
     @command("bindlxns", alias={"绑定落雪"})

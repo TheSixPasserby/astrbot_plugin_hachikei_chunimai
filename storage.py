@@ -134,6 +134,18 @@ class UserStore:
             return d.get("qq", "") or ""
         return ""
 
+    async def remove_qq(self, user_key: str) -> None:
+        """解绑 QQ 号。"""
+        async with self._lock:
+            rec = self._data.get(user_key)
+            if not rec or "qq" not in rec:
+                return
+            del rec["qq"]
+            # 记录整体为空时清理，避免留下空壳条目
+            if not rec:
+                self._data.pop(user_key, None)
+            await self.save()
+
     async def set_lxns_token(
         self, user_key: str, access_token: str, refresh_token: str = "",
         expires_at: float = 0.0,

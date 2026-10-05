@@ -90,6 +90,27 @@ class AccountService:
         await self.user_store.set_qq(user_key, qq)
         yield self._message(event, f"✅ 已绑定 QQ: {qq}")
 
+    async def unbind_qq(self, event: "AstrMessageEvent"):
+        """解绑 QQ 号。"""
+        user_key = _user_key(event)
+        qq = self.user_store.get_qq(user_key)
+        if not qq:
+            yield self._message(event, "你还没有绑定 QQ 号。")
+            return
+        await self.user_store.remove_qq(user_key)
+        # 提示仍可用的其他凭据，避免解绑后无从查分
+        others = []
+        if self.user_store.get_lxns_token(user_key):
+            others.append("落雪")
+        if self.user_store.get_divingfish_token(user_key):
+            others.append("水鱼")
+        hint = (
+            f"\n仍可使用 {' / '.join(others)} 查分器查询。"
+            if others
+            else "\n⚠️ 你已没有任何绑定的查分方式，请发送 `绑定水鱼` 或 `绑定QQ <QQ号>` 重新绑定。"
+        )
+        yield self._message(event, f"✅ 已解绑 QQ: {qq}{hint}")
+
     async def bind_lxns(self, event: "AstrMessageEvent"):
         """落雪 OAuth 绑定 — 生成链接，等待用户发送密钥。"""
         client_id = self.config.get("lxns_client_id", "")
@@ -305,6 +326,7 @@ class AccountService:
             "• `绑定QQ <QQ号>` — 绑定 QQ",
             "• `绑定落雪` — 授权落雪查分器（推荐）",
             "• `绑定水鱼` — 获取水鱼 Import-Token",
+            "• `解绑QQ` — 取消 QQ 绑定",
             "• `解绑落雪` / `解绑水鱼` — 取消授权",
         ])
         if not qq and not lxns_token:
