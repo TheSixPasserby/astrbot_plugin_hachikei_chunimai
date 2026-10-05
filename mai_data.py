@@ -261,6 +261,14 @@ class MusicDataManager:
         self._static_dir = data_dir / "static"
         self._static_dir.mkdir(parents=True, exist_ok=True)
 
+        self.music_list: MusicList = MusicList()
+        self.chart_stats: dict = {}
+        self.alias_list: AliasList = AliasList()
+        self.plate_data: dict[str, list[int]] = {}
+        self.level_data: dict[str, dict[str, list[RaMusic]]] = {}
+        self.guess_data: list[Music] = []
+        self.guess_manager = GuessManager()
+
     @property
     def cover_dir(self) -> Path:
         """封面缓存目录（避免外部直接摸 _data_dir）。"""
@@ -275,14 +283,6 @@ class MusicDataManager:
     def data_dir(self) -> Path:
         """数据目录（避免外部直接摸 _data_dir）。"""
         return self._data_dir
-
-        self.music_list: MusicList = MusicList()
-        self.chart_stats: dict = {}
-        self.alias_list: AliasList = AliasList()
-        self.plate_data: dict[str, list[int]] = {}
-        self.level_data: dict[str, dict[str, list[RaMusic]]] = {}
-        self.guess_data: list[Music] = []
-        self.guess_manager = GuessManager()
 
     async def _read_json(self, filename: str) -> Any:
         path = self._static_dir / filename
